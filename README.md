@@ -23,3 +23,21 @@ Workparser is parser which parses your tasks and returns selected tasks by query
         16.10.2012	14:30-14:45	15m	#programming #python #hacking Hacking with python for fun (ticket #150)
         Overall: 45m
 
+        $ python parser.py "#air" ""
+        16.10.2012	10:00-14:00	4h 0m	#air Mixing the air
+        17.10.2012	7:15-9:00	1h 45m	Driving with a car #car #air
+        Overall: 5h 45m
+
+        $ python parser.py "" "ticket"
+        16.10.2012	14:00-14:30	30m	#programming #python #urllib2 #bugfix Bugfix with urllib library ticket #123
+        16.10.2012	14:30-14:45	15m	#programming #python #hacking Hacking with python for fun (ticket #150)
+        Overall: 45m
+
+        $ python parser.py "" ""
+        16.10.2012	10:00-14:00	4h 0m	#air Mixing the air
+        16.10.2012	14:00-14:30	30m	#programming #python #urllib2 #bugfix Bugfix with urllib library ticket #123
+        16.10.2012	14:30-14:45	15m	#programming #python #hacking Hacking with python for fun (ticket #150)
+        17.10.2012	6:00-7:15	1h 15m	Fixing an another bug
+        17.10.2012	7:15-9:00	1h 45m	Driving with a car #car #air
+        Overall: 7h 45m
+
