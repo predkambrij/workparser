@@ -91,7 +91,7 @@ def format_seconds(sec):
     elif sec < 86400:
         return str(sec/60/60)+"h "+ str((sec/60)%60)+"m"
     else:
-        return str(sec/60/60/24)+"d "+str((sec/60/60)%24)+"h "+ str((sec/60)%60)+"m"
+        return str(sec/60/60/24)+"d "+str((sec/60/60)%24)+"h "+ str((sec/60)%60)+"m"+"=="+ str(sec/60/60)+"h "+ str((sec/60)%60)+"m"
 
 def find_tags(comment):
     return [ x for x in comment.split() if re.match("^#[a-zA-Z]+$",x)]
@@ -103,6 +103,11 @@ def print_selected(records,overall_time=False):
     formated_records = "\n".join([x["date"]+"."+x["year"]+"\t"+x["start"]+"-"+x["end"]+"\t"+x["str_diff"]+"\t"+x["comment"] for x in records])
     all_time = sum(x["duration"] for x in records)
     return formated_records+"\nOverall: "+format_seconds(all_time)
+
+def export_to_excel_selected(records,overall_time=False, skip_tags=True):
+    formated_records = "\n".join([x["date"].replace(",",".")+"."+"\t"+x["start"]+"\t"+x["end"]+"\t"+x["str_diff"]+"\t"+" ".join(word for word in x["comment"].split(" ") if not word.startswith("#")).strip() for x in records])
+    file("out.xls","wb").write(formated_records)
+    return
 
 def print_usage(additional=""):
     sys.stderr.write(
@@ -142,6 +147,6 @@ selected = selected_records(all_times,regex=regex,tags=tags)
 
 # format for print and add overall spent time
 out = print_selected(selected)
-
+export_to_excel_selected(selected)
 print out
 
