@@ -41,3 +41,35 @@ Workparser is parser which parses your tasks and returns selected tasks by query
         17.10.2012	7:15-9:00	1h 45m	Driving with a car #car #air
         Overall: 7h 45m
 
+### Example of NixOS configuration which is adding time tracks for measuring working time: 
+        systemd.services."my-pre-suspend" =
+            { description = "Pre-Suspend Actions";
+                wantedBy = [ "suspend.target" ];
+                before = [ "systemd-suspend.service" ];
+                script = ''
+                        # usefull for debug that this part of code really runs
+                        /run/current-system/sw/bin/date > /tmp/MY-PRE-RESUME
+                        # add info to my personal time tracker
+                        /run/current-system/sw/bin/echo  "$(/run/current-system/sw/bin/date +%Y-%m-%d-%H-%M-%S) PRESUSPEND" >> /home/lojze/newhacks/time_tracking.log
+                        # lock screen
+                        /home/lojze/newhacks/root_exec.sh /run/current-system/sw/bin/xscreensaver-command -lock 2>/tmp/lock_err
+                    '';
+        
+                serviceConfig.Type = "simple";
+            };
+        
+        systemd.services."my-post-suspend" =
+            { description = "Post-Suspend Actions";
+                wantedBy = [ "suspend.target" ];
+                after = [ "systemd-suspend.service" ];
+                script = ''
+                        # usefull for debug that this part of code really runs
+                        /run/current-system/sw/bin/date > /tmp/MY-POST-RESUME
+                        # add info to my personal time tracker
+                        /run/current-system/sw/bin/echo  "$(/run/current-system/sw/bin/date +%Y-%m-%d-%H-%M-%S) POSTSUSPEND" >> /home/lojze/newhacks/time_tracking.log
+                    '';
+        
+                serviceConfig.Type = "simple";
+            };
+
+
