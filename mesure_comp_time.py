@@ -1,5 +1,6 @@
+# -*- coding:utf8 -*-
 import traceback
-import time, datetime
+import time, datetime, argparse
 
 class Parser:
     def __init__(self, filename):
@@ -159,15 +160,45 @@ class Parser:
         print self.format_slices(self.run_slices, slices_title="run_slices")
         print self.format_slices(self.stop_slices, slices_title="stop_slices")
         
-        print "stopslice"
-        for stopslice in self.stop_slices:
-            print str(stopslice)
-        print "runslice"
-        for runslice in self.run_slices:
-            print str(runslice)
+#         print "stopslice"
+#         for stopslice in self.stop_slices:
+#             print str(stopslice)
+#         print "runslice"
+#         for runslice in self.run_slices:
+#             print str(runslice)
         
                 
 if __name__ == "__main__":
+#    argparser = argparse.ArgumentParser()
+#    #group = argparser.add_mutually_exclusive_group()
+##     moneygroup = argparser.add_argument_group("money group")
+##     timegroup = argparser.add_argument_group("time group")
+#    
+#    subparsers = argparser.add_subparsers(help='sub-command help')
+#    
+#    parser_a = subparsers.add_parser('mp', help='money parser help')
+#    parser_a.add_argument('bar', type=int, help='bar help')
+#    
+#    parser_b = subparsers.add_parser('tp', help='time parser help')
+#    parser_b.add_argument('--baz', choices='XYZ', help='baz help')
+#    
+#    
+#    #argparser.add_argument('-t', '--time-entries', action='store_true', required=False)
+#    #argparser.add_argument('-m', '--money-entries', action='store_true', required=False)
+#    
+#    #timegroup.add_argument('-d', '--day', default="Today", required=False)
+#    #moneygroup.add_argument('-n', '--days-number', default=1, type=int, required=False)
+#    
+#    
+#    args = argparser.parse_args()
+#    
+#    print "te", args.time_entries
+#    print "me", args.money_entries
+#    
+#    print dir(argparser)
+#    sys.exit(1)
+    
+    
     f="/home/lojze/newhacks/time_tracking.log"
     p = Parser(f)
     lines = p.readFromFile()
