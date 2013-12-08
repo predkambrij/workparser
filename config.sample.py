@@ -10,3 +10,5 @@ file_location="data.dat"
 # use file or data retreived from web
 use_web=False
 
+# path to time_tracking.log file producted by systemd pre and post sleep hook and lock_screen.sh
+time_tracking_log="/path/to/time_tracking.log"
