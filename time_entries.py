@@ -130,7 +130,7 @@ class TicketParser:
     
     def export_to_excel_selected(self, records,overall_time=False, skip_tags=True):
         formated_records = "\n".join([x["date"].replace(",",".")+"."+"\t"+x["start"]+"\t"+x["end"]+"\t"+x["str_diff"]+"\t"+" ".join(word for word in x["comment"].split(" ") if not word.startswith("#")).strip() for x in records])
-        codecs.open("out.xls","wb", encoding="utf-8").write(formated_records)
+        #TODO codecs.open("out.xls","wb", encoding="utf-8").write(formated_records)
         return
     def print_usage(self, additional=""): # TODO do ith with argparse TODO update README
         sys.stderr.write(
