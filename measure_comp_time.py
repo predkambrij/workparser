@@ -187,8 +187,8 @@ class Parser:
         
         # number of added days
         added = 0
-        # choose needed days (self.starting_day and self.number_of_days)
-        for day in all_days:
+        # choose needed days (in reverse) (self.starting_day and self.number_of_days)
+        for day in all_days[::-1]:
             if adding == False:
                 if day["day"] == self.starting_day:
                     adding = True
@@ -201,7 +201,7 @@ class Parser:
         if added == False:
             raise Exception("Date %s didn't met\n" % self.starting_day.strftime("%d.%m.%Y"))
             
-        return affected_days
+        return affected_days[::-1]
         
     def format_slices(self, slices, slices_title = ""):
         """
@@ -220,7 +220,16 @@ class Parser:
         # title
         ret_str += slices_title+"\n"
         
+        # total time of all days
+        total_all = 0
+        
+        # number of all days
+        days_num = 0
+        
         for day in affected_days:
+	    total_all += day["total"]
+            days_num += 1
+            
             ret_str += "\nDay: " +day["day"].strftime("%d.%m") + "\n"
             
             if self.verbose == True:
@@ -230,6 +239,11 @@ class Parser:
                         + "  "+"("+self.calculate_duration(slice["duration"])+")"+"\n")
                 
             ret_str += "Total: " + self.calculate_duration(day["total"]) + "\n"
+        
+        ret_str += "Number of days: "+ str(days_num) + " (from "+affected_days[0]["day"].strftime("%d.%m") + " to "+ affected_days[-1]["day"].strftime("%d.%m")+ ")\n"
+        if days_num > 1:
+	    ret_str += "Total all days: " + self.calculate_duration(total_all) + "\n"
+	    ret_str += "Average per day: " + self.calculate_duration(int(total_all/float(days_num))) + "\n"
         
         return ret_str
     
@@ -285,7 +299,7 @@ class Parser:
         argparser = argparse.ArgumentParser()
         argparser.add_argument('-v', '--verbose-entries', action='store_true', required=False, help="display time sections")
         argparser.add_argument('-d', '--day', nargs=1, type=self.checkDateFormat, required=False, help="set starting day (default today) in format %%d.%%m.%%Y example:(25 or 25.12 or 25.12.2013)")
-        argparser.add_argument('-n', '--number', nargs=1, type=self.checkNumberOfdays,  required=False, help="display number of days (default 1) after starting day (default today, you can customize it with --day flag)")
+        argparser.add_argument('-n', '--number', nargs=1, type=self.checkNumberOfdays,  required=False, help="display number of days (default 1) backward starting day (default today, you can customize it with --day flag)")
         argparser.add_argument('-s', '--stop-entries', action='store_true', required=False, help="displays stop sections instead running time sections")
         # TODO min time resolution
         # list all days, first date, last date from records
