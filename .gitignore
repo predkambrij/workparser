@@ -5,4 +5,6 @@ out.xls
 workparser.egg-info
 bank_klik.dat
 bank_netstik.dat
+deposits.dat
+transfers.dat
 
