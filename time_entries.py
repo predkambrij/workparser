@@ -345,7 +345,7 @@ class MoneyParser:
         
         # go over time entries
         for time_entry in all_times:
-            moneypart = time_entry["money_part"]
+            moneypart = time_entry["money_part"].decode('utf-8')
             
             # skip entries which hasn't money entry
             if moneypart == u"": continue
