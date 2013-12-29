@@ -37,6 +37,7 @@ class TicketParser:
     def parser(self, data):
         """
         :parm data: list of records
+        :type data: list
         """
         days = []
         skipped_days = []
