@@ -1,6 +1,6 @@
 # -*- coding:utf8 -*-
 import config
-import urllib2, base64, re, time, datetime, sys, xmlrpclib, codecs
+import urllib2, base64, re, time, datetime, sys, xmlrpclib, codecs, argparse
 
 class TicketParser:
     def get_data_from_web(self):
@@ -30,7 +30,13 @@ class TicketParser:
         get data from file_location specified in config.py (default data.dat)
         """
         try:
-            return file(config.file_location,"rb").read().split("\n")
+            lines = file(config.file_location,"rb").read().split("\n")
+            selected_lines = []
+            for line in lines:
+                if line.startswith("===end_of_time_entries==="):
+                    break
+                selected_lines.append(line)
+            return selected_lines
         except IOError,e:
             print e
     
@@ -104,8 +110,10 @@ class TicketParser:
                 end_sec = int(time.mktime(time.strptime(self.mock_date(date,year,start,end)+"."+year+" "+end, "%d.%m.%Y %H:%M")))
     
                 str_diff = self.format_seconds(end_sec-start_sec)
-                ndays.append({"year":year,"date":date,"start":start,"end":end,"duration":(end_sec-start_sec),"str_diff":str_diff,
-                                                            "comment":comment, "money_part":money_part, "real_comment":real_comment, "start_sec":start_sec})
+                ndays.append({"year":year,"date":date,"start":start,"end":end,
+                    "duration":(end_sec-start_sec),"str_diff":str_diff,
+                    "comment":comment, "money_part":money_part, "real_comment":real_comment,
+                    "start_sec":start_sec, "start_dt":datetime.datetime.fromtimestamp(start_sec)})
         return ndays
     
     def format_seconds(self, sec):
@@ -121,39 +129,27 @@ class TicketParser:
     def find_tags(self, comment):
         return [ x for x in comment.split() if re.match("^#[a-zA-Z]+$",x)]
     
-    def selected_records(self, all_times, regex="" ,tags=[]):
-        return [x for x in all_times if (regex=="" or re.match("^.*"+regex+".*$",x["comment"])) and (tags==[] or all((y in self.find_tags(x["comment"])) for y in tags))]
+    def selected_records(self, all_times, regex="" ,tags=[], full_regex=False):
+        if full_regex == True:
+            return [x for x in all_times if (regex=="" or re.match(regex,x["comment"])) and (tags==[] or all((y in self.find_tags(x["comment"])) for y in tags))]
+        else:
+            return [x for x in all_times if (regex=="" or re.match("^.*"+regex+".*$",x["comment"])) and (tags==[] or all((y in self.find_tags(x["comment"])) for y in tags))]
+        
     
     def print_selected(self, records,overall_time=False):
-        formated_records = "\n".join([x["date"]+"."+x["year"]+"\t"+x["start"]+"-"+x["end"]+"\t"+x["str_diff"]+"\t"+x["comment"] for x in records])
+        formated_records_list = [x["date"]+"."+x["year"]+"\t"+x["start"]+"-"+x["end"]+"\t"+x["str_diff"]+"\t"+(x["comment"] if type(x["comment"]) == type(u"") else x["comment"].decode("utf8")) for x in records]
+                    
+        formated_records = "\n".join(formated_records_list)
         all_time = sum(x["duration"] for x in records)
         return formated_records+"\nOverall: "+self.format_seconds(all_time)
     
     def export_to_excel_selected(self, records,overall_time=False, skip_tags=True):
-        formated_records = "\n".join([x["date"].replace(",",".")+"."+"\t"+x["start"]+"\t"+x["end"]+"\t"+x["str_diff"]+"\t"+" ".join(word for word in x["comment"].split(" ") if not word.startswith("#")).strip() for x in records])
+        formated_records = "\n".join([x["date"].replace(",",".")+"."+"\t"+x["start"]+"\t"+x["end"]+"\t"+x["str_diff"]+"\t"+" ".join(
+            word for word in (x["comment"] if type(x["comment"]) == type(u"") else x["comment"].decode("utf8")).split(" ") if not word.startswith("#")).strip() for x in records])
         #TODO codecs.open("out.xls","wb", encoding="utf-8").write(formated_records)
         return
-    def print_usage(self, additional=""): # TODO do ith with argparse TODO update README
-        sys.stderr.write(
-            ("" if additional=="" else additional+"\n")
-            +"Usage: parser.py \"tags separated with spaces\" \"regex\"\n"
-            +"Examples:\n"
-            +"Given tags and regex (note: regex is actually ^.*bugfix.*$)\n"
-            +"python parser.py \"#home #python #urllib\" \"bugfix\"\n"
-            +"Ommited tags\n"
-            +"python parser.py \"\" \"bugfix\"\n"
-            +"Ommited regex\n"
-            +"python parser.py \"#home #python #urllib\" \"\"\n")
-        sys.exit(1)
     
-    def parse_input(self):
-        if len(sys.argv) == 4:
-            return self.find_tags(sys.argv[1]),sys.argv[2],True
-        elif len(sys.argv) == 3:
-            return self.find_tags(sys.argv[1]),sys.argv[2],False
-        else:
-            self.print_usage("You must provide two or three arguments! Given %d"% (len(sys.argv)-1))
-
+    
 class MoneyParser:
     def __init__(self):
         # group by day and month
@@ -385,19 +381,116 @@ class MoneyParser:
         ret_str += self.total_info()
         
         return ret_str
+
+class ParseArguments:
+    def checkNumberOfdays(self, value):
+        """It have to be positive number"""
+        show_type_error = False
+        try:
+            intvalue = int(value)
+            if intvalue > 0:
+                return intvalue
+            else:
+                show_type_error = True
+        except:
+            show_type_error = True
+            
+        if show_type_error == True:
+            raise argparse.ArgumentTypeError("%s is an invalid positive int value" % value)
+        return
     
+    def checkDateFormat(self, value):
+        """Parse date from value"""
+        day = value
+        
+        day_int = 0
+        
+        current_month_and_year = datetime.datetime.now().strftime("%m.%Y")
+        try: day_int = int(time.mktime(time.strptime(day+"."+current_month_and_year, "%d.%m.%Y")))
+        except: pass
+        
+        if day_int == 0:
+            current_year = datetime.datetime.now().strftime("%Y")
+            try: day_int = int(time.mktime(time.strptime(day+"."+current_year, "%d.%m.%Y")))
+            except: pass
+        
+        if day_int == 0:
+            try: day_int = int(time.mktime(time.strptime(day, "%d.%m.%Y")))
+            except: pass
+        
+        if day_int == 0:
+            raise argparse.ArgumentTypeError("%s uncorrect format. It must be in \"%%d.%%m.%%Y\" eg. 6.12.2013" % value)
+        else:
+            # create and return datetime object from absolute time
+            return datetime.datetime.fromtimestamp(day_int)
+    
+    def parseArguments(self):
+        """
+        Parse arguments
+        """
+        
+        argparser = argparse.ArgumentParser()
+        argparser.add_argument('-d', '--day', nargs=1, type=self.checkDateFormat,
+            required=False, help="set starting day (default today) in format %%d.%%m.%%Y example:(25 or 25.12 or 25.12.2013)")
+        argparser.add_argument('-n', '--number', nargs=1, type=self.checkNumberOfdays,
+            required=False, help="display number of days or months (default 1 day) backward starting day (--day flag)\n"
+                                +"Example -n 5d (5 days backward starting day); -n 1m (from starting day backward to first in this month); -n 2m (from starting day backward to first in previous month)")
+        argparser.add_argument('-f', '--filter', nargs=1, type=str,
+            required=False, help="regex filter (re.match) in description for time entry (including tags)")
+        argparser.add_argument('-t', '--tags', nargs=1, type=str,
+            required=False, help="filter lines by tags (sparated with spaces)\n"
+                                +"Example: \"#home #python #urllib\"")
+        
+        args = argparser.parse_args()
+        
+        # use today if not set
+        if args.day == None:
+            # convert current timestamp to string and back to datetime (that only year, month and day will remain)
+            today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+            today_int = int(time.mktime(time.strptime(today_str, "%Y-%m-%d")))
+            self.starting_day = datetime.datetime.fromtimestamp(today_int)
+        else:
+            self.starting_day = args.day[0]
+        
+        # number of days to show after starting date (use as default 1 day)
+        if args.number == None:
+            self.number_of_days = 1
+        else:
+            self.number_of_days = args.number[0]
+        
+        if args.filter == None:
+            self.filter = ""
+        else:
+            self.filter = args.filter
+        
+        if args.tags == None:
+            self.tags = ""
+        else:
+            self.tags = args.tags
+        
+        return
+
 if __name__ == "__main__":
+    
+    args = ParseArguments()
+    args.parseArguments()
+    
+    
     tp = TicketParser()
     
     # provide list with records
-    if config.use_web==True:
-        data = tp.get_data_from_web()
-    else:
-        data = tp.get_data_from_file()
     
+    
+    # TODO - fetch if needed
+    data = tp.get_data_from_web()
+    data += tp.get_data_from_file()
     
     # get input (list of tags and string regex)
-    tags,regex,money = tp.parse_input()
+    tags = tp.find_tags(args.tags[0])
+    regex = args.filter[0]
+    money = False
+
+    
     
     # structured data
     time_pairs,skipped = tp.parser(data)
@@ -405,8 +498,14 @@ if __name__ == "__main__":
     # even more structured data
     all_times = tp.time_calculator(time_pairs)
     
+    # select by first date
+    selected_entries = []
+    for time_entry in all_times:
+        if time_entry["start_dt"] >= args.starting_day:
+            selected_entries.append(time_entry)
+    
     # select records which match all tags AND regex
-    selected = tp.selected_records(all_times,regex=regex,tags=tags)
+    selected = tp.selected_records(selected_entries,regex=regex,tags=tags, full_regex=False)
     
     # format for print and add overall spent time
     out = tp.print_selected(selected)
@@ -417,6 +516,6 @@ if __name__ == "__main__":
     if money:
         # money part
         mp = MoneyParser()
-        print mp.print_money_entries(all_times)
+        print mp.print_money_entries(selected_entries)
 
 
