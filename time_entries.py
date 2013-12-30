@@ -459,12 +459,12 @@ class ParseArguments:
             self.number_of_days = args.number[0]
         
         if args.filter == None:
-            self.filter = ""
+            self.filter = [""]
         else:
             self.filter = args.filter
         
         if args.tags == None:
-            self.tags = ""
+            self.tags = [""]
         else:
             self.tags = args.tags
         
