@@ -3,9 +3,8 @@ import re, time, datetime, os
 import config
 
 class BankMonth:
-    def __init__(self, bankaccount, start, end):
-        self.start = start
-        self.end = end
+    def __init__(self, bankaccount, timestamp):
+        self.timestamp = timestamp
         self.income = 0
         self.outcome = 0
         self.bankaccount = bankaccount
@@ -16,6 +15,24 @@ class BankMonth:
     def add_outcome(self, value):
         self.outcome += value
 
+class Timestamp:
+    """
+    class for easier carrier timestap (for printing, sorting, ...)
+    """
+    def __init__(self, start_date, end_date):
+        # from start to .. delimiter
+        self.start_date_int = int(time.mktime(time.strptime(start_date, "%d.%m.%Y")))
+        self.start_date_datetime = datetime.datetime.fromtimestamp(self.start_date_int)
+        
+        # from .. delimiter to string i_ for income
+        self.end_date_int = int(time.mktime(time.strptime(end_date, "%d.%m.%Y")))
+        self.end_date_datetime = datetime.datetime.fromtimestamp(self.end_date_int)
+        
+        self.start_str = self.start_date_datetime.strftime("%d.%m.%Y")
+        self.end_str = self.end_date_datetime.strftime("%d.%m.%Y")
+        
+        # timestamp start..end together for dictionary key
+        self.start_end = (self.start_str+".."+self.end_str)
 
 class BankParser:
     def __init__(self, datafiles):
@@ -56,16 +73,6 @@ class BankParser:
                 
                 # parse data
                 
-                # from start to .. delimiter
-                start_date = stripped_line[:stripped_line.find("..")]
-                start_date_int = int(time.mktime(time.strptime(start_date, "%d.%m.%Y")))
-                start_date_datetime = datetime.datetime.fromtimestamp(start_date_int)
-                
-                # from .. delimiter to string i_ for income
-                end_date = stripped_line[stripped_line.find("..")+2:stripped_line.find("i_")-1]
-                end_date_int = int(time.mktime(time.strptime(end_date, "%d.%m.%Y")))
-                end_date_datetime = datetime.datetime.fromtimestamp(end_date_int)
-                
                 # from i_ string to € currency
                 income = stripped_line[stripped_line.find("i_")+2:stripped_line.find("€", stripped_line.find("i_"))]
                 income_float = float(income)
@@ -74,14 +81,18 @@ class BankParser:
                 outcome = stripped_line[stripped_line.find("o_")+2:stripped_line.find("€", stripped_line.find("o_"))]
                 outcome_float = float(outcome)
                 
-                # timestamp start..end together for dictionary key
-                start_end = start_date_datetime.strftime("%d.%m.%Y")+".."+end_date_datetime.strftime("%d.%m.%Y")
                 
-                self.bank_months[bank_account][start_end] = BankMonth(bank_account, start_date_datetime, end_date_datetime)
+                timestamp = Timestamp(start_date=stripped_line[:stripped_line.find("..")],
+                                      end_date=stripped_line[stripped_line.find("..")+2:stripped_line.find("i_")-1])
+                
+                # TODO merge somehow double data (dict indexes with BankMonth object)
+                b = BankMonth(bank_account, timestamp)
                 
                 # count transfer
-                self.bank_months[bank_account][start_end].add_income(income_float)
-                self.bank_months[bank_account][start_end].add_outcome(outcome_float)
+                b.add_income(income_float)
+                b.add_outcome(outcome_float)
+                
+                self.bank_months[bank_account][timestamp.start_end] = b
         return
     
     def transfers_between_accounts(self, filename):
@@ -186,33 +197,102 @@ class BankParser:
                               "currency":"€"})
         return deposits
     
-    def bankAccountMonthRatio(self, transfers=None, deposits=None):
+    def formatBankAccountMonthRatio(self, bank_months):
         """
         Format traffic separated for all bank accounts
         If transfers and/or deposits are present that are subtracted
+        
+        """
+        # string to return
+        ret = ""
+        
+        bank_accounts = sorted(bank_months.keys(), key=lambda x:x)[::-1]
+        for bank_account in bank_accounts:
+            middle_output = ""
+            
+            time_ranges = sorted(bank_months[bank_account].keys(), key=lambda x:x)
+            for time_range in time_ranges:
+                income_str = "income: %.2f" % (bank_months[bank_account][time_range]["calculated_income"])
+                outcome_str = "outcome: %.2f" % (bank_months[bank_account][time_range]["calculated_outcome"])
+                
+                if (bank_months[bank_account][time_range]["income-transfer"] != 0
+                        or bank_months[bank_account][time_range]["outcome-transfer"] != 0):
+                    income_str += " (transfer:%.2f)" % bank_months[bank_account][time_range]["income-transfer"]
+                    outcome_str += " (transfer:%.2f)" % bank_months[bank_account][time_range]["outcome-transfer"]
+                
+                if (bank_months[bank_account][time_range]["income-deposit"] != 0
+                        or bank_months[bank_account][time_range]["outcome-deposit"] != 0):
+                    income_str += " (deposit:%.2f)" % bank_months[bank_account][time_range]["income-deposit"]
+                    outcome_str += " (deposit:%.2f)" % bank_months[bank_account][time_range]["outcome-deposit"]
+                
+                middle_output += time_range+"\n"
+                middle_output += income_str + "\n"+outcome_str+"\n"
+                middle_output += "balance: %.2f\n" % bank_months[bank_account][time_range]["balance"]
+                
+                # space between months
+                middle_output += "\n"
+            
+            if middle_output != "":
+                if ret != "":
+                    ret += "\n\n"
+                # print account name
+                middle_output = bank_account + "\n" + middle_output
+                # remove last two new lines
+                middle_output = middle_output[:-2]
+                
+                ret += middle_output
+                ret += "\n"
+        
+        return ret[:-1]
+    
+    def calculateBankAccountMonthRatio(self, transfers=None, deposits=None):
+        """
+        Calculate traffic for all bank accounts.
+        If transfers and/or deposits are present that are merged
         
         :parm transfers: take care (ignore transactions) for transfers between accounts
         :type transfers: well structured dict or None
         :parm deposits: take care (ignore transactions) for deposits on accounts
         :type deposits: well structured dict or None
+        :returns: dict structure in format:
+            {"bank_acc.dat":
+                    {"time-range":
+                        {"income":value,
+                         "outcome":value,
+                         "income-transfer":value,
+                         "outcome-transfer":value,
+                         "income-deposit":value,
+                         "outcome-deposit":value,
+                         "calculated_income":value,
+                         "calculated_outcome":value,
+                         "balance":value,
+                        }
+                    ,# another time range
+                    }
+            , # another bank account
+            }
         """
-        ret = ""
+        # bank accounts
+        # "bank_account.dat":{time ranges}, "another_account.dat":{time ranges}, ...
+        ret_bank_accounts = {}
         
         bank_accounts = self.bank_months.keys()
         for bank_account in bank_accounts:
-            if ret != "":
-                ret += "\n\n"
+            # time ranges
+            # "time:range":{attributes}, "time range2":{attributes}, ...
+            ret_bank_accounts[bank_account] = {}
+            
             # pairs timestamp and BankMonth() objects
             months = self.bank_months[bank_account].items()
             
             # order months by start date in this bank account
-            ordered_months = sorted(months, key=lambda x:x[1].start)
+            ordered_months = sorted(months, key=lambda x:x[1].timestamp.start_date_int)
             
-            middle_output = ""
             for month in ordered_months:
-                # start..end
-                middle_output += month[0] + "\n"
+                # initialize time range (month[0] is in format start..end)
+                ret_bank_accounts[bank_account][month[0]] = {}
                 
+                # transfers
                 t_income_delta = 0
                 t_outcome_delta = 0
                 if transfers != None:
@@ -223,6 +303,7 @@ class BankParser:
                             elif transfer["to"] == bank_account:
                                 t_income_delta -= transfer["amount"]
                 
+                # deposits
                 d_income_delta = 0
                 d_outcome_delta = 0
                 if deposits != None:
@@ -231,40 +312,22 @@ class BankParser:
                             d_income_delta -= deposit["income"]
                             d_outcome_delta-= deposit["outcome"]
                 
-                income_str = ""
-                outcome_str = ""
-                income = month[1].income + t_income_delta + d_income_delta
-                outcome = month[1].outcome + t_outcome_delta + d_outcome_delta
-                income_str += "income: %.2f" % (income)
-                outcome_str += "outcome: %.2f" % (outcome)
+                calculated_income = month[1].income + t_income_delta + d_income_delta
+                calculated_outcome = month[1].outcome + t_outcome_delta + d_outcome_delta
+                balance = calculated_income - calculated_outcome
                 
-                if t_income_delta != 0 or t_outcome_delta != 0:
-                     income_str += " (transfer:%.2f)" % t_income_delta
-                     outcome_str += " (transfer:%.2f)" % t_outcome_delta
+                # fill time range attributes
+                ret_bank_accounts[bank_account][month[0]]["income"]=            month[1].income
+                ret_bank_accounts[bank_account][month[0]]["outcome"]=           month[1].outcome
+                ret_bank_accounts[bank_account][month[0]]["income-transfer"]=   t_income_delta
+                ret_bank_accounts[bank_account][month[0]]["outcome-transfer"]=  t_outcome_delta
+                ret_bank_accounts[bank_account][month[0]]["income-deposit"]=    d_income_delta
+                ret_bank_accounts[bank_account][month[0]]["outcome-deposit"]=   d_outcome_delta
+                ret_bank_accounts[bank_account][month[0]]["calculated_income"]= calculated_income
+                ret_bank_accounts[bank_account][month[0]]["calculated_outcome"]=calculated_outcome
+                ret_bank_accounts[bank_account][month[0]]["balance"]=           balance
                 
-                if d_income_delta != 0 or d_outcome_delta != 0:
-                     income_str += " (deposit:%.2f)" % d_income_delta
-                     outcome_str += " (deposit:%.2f)" % d_outcome_delta
-                
-                
-                middle_output += income_str + "\n"
-                middle_output += outcome_str + "\n"
-                
-                middle_output += "balance: %.2f\n" % (income-outcome)
-                
-                # space between months
-                middle_output += "\n"
-                
-            if middle_output != "":
-                # print account name
-                middle_output = bank_account + "\n" + middle_output
-                # remove last two new lines
-                middle_output = middle_output[:-2]
-            
-            ret += middle_output
-            ret += "\n"
-            
-        return ret[:-1] # remove last new line
+        return ret_bank_accounts
     
 
 if __name__ == "__main__":
@@ -274,7 +337,7 @@ if __name__ == "__main__":
     deposits = bp.deposits(config.deposits_file)
     bp.structData(print_unparsable_lines=False)
     
-    
-    print bp.bankAccountMonthRatio(transfers=transfers, deposits=deposits)
+    bank_months = self.calculateBankAccountMonthRatio(transfers=transfers, deposits=deposits)
+    print bp.formatBankAccountMonthRatio(bank_months)
     
     
