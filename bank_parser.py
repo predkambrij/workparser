@@ -224,6 +224,60 @@ class BankParser:
                 ret += "\n"
         return ret[:-1]
     
+    def mergeBankAccountsMonthRatio(self, bank_months):
+        """
+        Calculate (merge) income, outcome, balance from all bank accounts
+        
+        :parm bank_months: output from calculateBankAccountMonthRatio()
+        :returns: same structure as input but merged from all bank accounts
+        """
+        merged_accounts = {}
+        
+        bank_accounts = bank_months.keys()
+        for bank_account in bank_accounts:
+            time_ranges = bank_months[bank_account].keys()
+            
+            for time_range in time_ranges:
+                # I think that can be done with .has_key() or similar
+                # check if key already exists
+                local_time_range = None
+                for m_time_range in merged_accounts.keys():
+                    if m_time_range.start_end == time_range.start_end:
+                        local_time_range = m_time_range
+                        break
+                else:
+                    local_time_range = Timestamp(start_date=time_range.start_str, end_date=time_range.end_str)
+                    merged_accounts[local_time_range] = {"calculated_income":0,
+                                                         "calculated_outcome":0,
+                                                         "balance":0,}
+                
+                merged_accounts[local_time_range]["calculated_income"] += (
+                    bank_months[bank_account][time_range]["calculated_income"])
+                merged_accounts[local_time_range]["calculated_outcome"] += (
+                    bank_months[bank_account][time_range]["calculated_outcome"])
+                merged_accounts[local_time_range]["balance"] += (
+                    bank_months[bank_account][time_range]["balance"])
+        return merged_accounts
+    
+    def formatMergeBankAccountsMonthRatio(self, merged_accounts):
+        """
+        Format input for console
+        
+        :parm merged_accounts: output from mergeBankAccountsMonthRatio()
+        :returns: nicely formated string from input 
+        """
+        
+        ret = "=== Merged accounts ==="
+        time_ranges = sorted(merged_accounts.keys(), key=lambda x:x.start_date_int)
+        for time_range in time_ranges:
+            if ret != "":
+                ret += "\n\n"
+            ret += time_range.start_end + "\n"
+            ret += "Total income: %.2f\n" % (merged_accounts[time_range]["calculated_income"])
+            ret += "Total outcome: %.2f\n" % (merged_accounts[time_range]["calculated_outcome"])
+            ret += "Total balance: %.2f\n" % (merged_accounts[time_range]["balance"])
+        return ret[:-1]
+    
     def calculateBankAccountMonthRatio(self, transfers=None, deposits=None):
         """
         Calculate traffic for all bank accounts.
@@ -313,6 +367,9 @@ if __name__ == "__main__":
     bp.structData(print_unparsable_lines=False)
     
     bank_months = bp.calculateBankAccountMonthRatio(transfers=transfers, deposits=deposits)
+    merged_accounts = bp.mergeBankAccountsMonthRatio(bank_months)
+    
     print bp.formatBankAccountMonthRatio(bank_months)
+    print bp.formatMergeBankAccountsMonthRatio(merged_accounts)
     
     
