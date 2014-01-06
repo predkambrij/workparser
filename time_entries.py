@@ -332,8 +332,16 @@ class MoneyParser:
                     currency_balance, currency, outcome, currency, income, currency)
         return ret_str
     
-    def print_money_entries(self, all_times):
+    def print_money_entries(self, all_times, money_tags, list_money_tags, show_by_tags):
         ret_str = ""
+        if money_tags != "NoTags":
+            money_tags_list = money_tags.split()
+        else:
+            money_tags_list = None
+            
+        all_used_tags = set()
+        
+        by_tag = {}
         
         # previous day/month
         day=""
@@ -344,42 +352,101 @@ class MoneyParser:
         for time_entry in all_times:
             moneypart = time_entry["money_part"].decode('utf-8')
             
-            # skip entries which hasn't money entry
-            if moneypart == u"": continue
-            
-            # use time stamp from start time of time entry
-            time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
-            
-            # entries are sorted by time so if day changed print it
-            if day != time_dt.strftime("%d"):
-                # don't do that on first iteration
-                if day != "":
-                    ret_str += self.total_day_info()
-                newday = "\nDay "+time_dt.strftime("%d.%m")+":\n"
-                # update previous day variable
-                day = time_dt.strftime("%d")
-            
-            if month != time_dt.strftime("%m"):
-                if month != "":
+            # include just lines which has all required hastags (if flag isn't present ignore that condition)
+            if money_tags_list == None or money_tags_list != []:
+                tag_words = [word for word in moneypart.split() if re.match("^#[a-zA-Z_]+$",word)]
+                
+                # if we want lines which doesn't have any tag
+                if money_tags == "NoTags":
+                    if len(tag_words) != 0:
+                        continue
+                else:
+                    cont = False
+                    for tag in money_tags_list:
+                        if not tag in tag_words:
+                            cont = True
+                            break
+                    if cont:
+                        continue
+                
+                # add to list of all used tags
+                for tag in tag_words:
+                    all_used_tags.add(tag)
+                
+            if show_by_tags:
+                tag_words = [word for word in moneypart.split() if re.match("^#[a-zA-Z_]+$",word)]
+                for tag in tag_words:
+                    if not by_tag.has_key(tag):
+                        by_tag[tag] = {"in":{}, "out":{}}
+                    
+                    # find money part
+                    for money_word in moneypart.split():
+                        if (money_word.startswith("o_") or money_word.startswith("i_")) and len(money_word) >= 3:
+                            # parse currency and value
+                            currency, value, direction = self.parse_moneyword(money_word)
+                            
+                            if not by_tag[tag][direction].has_key(currency):
+                                by_tag[tag][direction][currency] = 0
+                            
+                            by_tag[tag][direction][currency] += value
+                
+                pass
+            else:
+                
+                # skip entries which hasn't money entry
+                if moneypart == u"": continue
+                
+                # use time stamp from start time of time entry
+                time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
+                
+                # entries are sorted by time so if day changed print it
+                if day != time_dt.strftime("%d"):
                     # don't do that on first iteration
-                    ret_str += self.total_month_info()
-                # update previous month variable
-                month = time_dt.strftime("%m")
-            
-            # print new day info after total month
-            if newday != "":
-                ret_str += newday
-                newday = ""
-            
-            # nicely formated money -> description pairs 
-            # also count money to class attributes
-            ret_str += self.parse_moneywords(moneywords=moneypart)+"\n"
+                    if day != "":
+                        ret_str += self.total_day_info()
+                    newday = "\nDay "+time_dt.strftime("%d.%m")+":\n"
+                    # update previous day variable
+                    day = time_dt.strftime("%d")
+                
+                if month != time_dt.strftime("%m"):
+                    if month != "":
+                        # don't do that on first iteration
+                        ret_str += self.total_month_info()
+                    # update previous month variable
+                    month = time_dt.strftime("%m")
+                
+                # print new day info after total month
+                if newday != "":
+                    ret_str += newday
+                    newday = ""
+                
+                # nicely formated money -> description pairs 
+                # also count money to class attributes
+                
+                ret_str += self.parse_moneywords(moneywords=moneypart)+"\n"
         
-        # add total also at the end
-        ret_str += self.total_day_info()
-        ret_str += self.total_month_info()
-        ret_str += self.total_info()
+        if show_by_tags:
+            ret_by_tag = ""
+            for tag in sorted(by_tag.keys(), key=lambda tag_x:sum([ sum([ by_tag[tag_x][cur][dir] for dir in by_tag[tag_x][cur].keys()]) for cur in by_tag[tag_x].keys()]), reverse=True
+                                                ):
+                #print tag, sum([ sum([ by_tag[tag][cur][dir] for dir in by_tag[tag][cur].keys()]) for cur in by_tag[tag].keys()])
+                ret_by_tag += "tag: %s\n" % tag
+                for currency in sorted(list(set(by_tag[tag]["in"].keys()+by_tag[tag]["out"].keys()))):
+                    if by_tag[tag]["in"].has_key(currency):
+                       ret_by_tag += "in: %d%s\n" % (by_tag[tag]["in"][currency], currency)
+                    if by_tag[tag]["out"].has_key(currency):
+                       ret_by_tag += "out: %d%s\n" % (by_tag[tag]["out"][currency], currency)
+            ret_str += ret_by_tag
+        else:
+            # add total also at the end
+            ret_str += self.total_day_info()
+            ret_str += self.total_month_info()
+            ret_str += self.total_info()
         
+        if list_money_tags:
+            ret_str += "\nUsed tags (%d): \"%s\"" % (
+                len(all_used_tags),
+                " ".join(sorted(list(all_used_tags))))
         return ret_str
 
 class ParseArguments:
@@ -491,13 +558,65 @@ class ParseArguments:
         moneyparser = subparsers.add_parser('m', help="Money parser")
         moneyparser.add_argument('-d', '--day', nargs=1, type=self.checkDateFormat,
             required=False, help="set starting day (default today) in format %%d.%%m.%%Y example:(25 or 25.12 or 25.12.2013)")
+        moneyparser.add_argument('-n', '--number', nargs=1, type=self.checkNumberOfdays,
+            required=False, help="display number of days or months (default 1 day) backward starting day (--day flag)\n"
+                                +"Example -n 5d (5 days backward starting day); -n 1m (from starting day backward to first in this month); -n 2m (from starting day backward to first in previous month)")
+        moneyparser.add_argument('-f', '--filter', nargs=1, type=str,
+            required=False, help="regex filter (re.match) in description for time entry (including tags)")
+        moneyparser.add_argument('-t', '--tags', nargs=1, type=str,
+            required=False, help="filter lines by tags (sparated with spaces)\n"
+                                +"Example: \"#home #python #urllib\"")
+        moneyparser.add_argument('-m', '--money-tags', nargs=1, type=str,
+            required=False, help="Show just lines which has all tags (separated with spaces). --money-tags=NoTags if you want to list entries without hashtag\n"
+                                +"Example: \"#food #fish\"")
+        moneyparser.add_argument('-l', '--list-money-tags', action='store_true', required=False, help="List all used money hashtags at the end\n")
+        moneyparser.add_argument('-s', '--show-by-tags', action='store_true', required=False, help="Show money flow by tags\n")
         
         return
     def parseArgsMoneyParserResult(self, args):
+        # use today if not set
+        if args.day == None:
+            # convert current timestamp to string and back to datetime (that only year, month and day will remain)
+            today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+            today_int = int(time.mktime(time.strptime(today_str, "%Y-%m-%d")))
+            self.starting_day = datetime.datetime.fromtimestamp(today_int)
+        else:
+            self.starting_day = args.day[0]
+        
+        # number of days to show after starting date (use as default 1 day)
+        if args.number == None:
+            self.number_of_days = 1
+        else:
+            self.number_of_days = args.number[0]
+        
+        if args.filter == None:
+            self.filter = [""]
+        else:
+            self.filter = args.filter
+        
+        if args.tags == None:
+            self.tags = [""]
+        else:
+            self.tags = args.tags
+        
+        if args.money_tags == None:
+            self.money_tags = ""
+        else:
+            self.money_tags = args.money_tags[0]
+        
+        if args.list_money_tags == False:
+            self.list_money_tags = False
+        else:
+            self.list_money_tags = True
+        
+        if args.show_by_tags == False:
+            self.show_by_tags = False
+        else:
+            self.show_by_tags = True
         
         return
 
-def time_entries(args):
+def common(args):
         # time entries
         tp = TicketParser()
         # provide list with records
@@ -542,13 +661,22 @@ def time_entries(args):
         
         # select records which match all tags AND regex
         selected = tp.selected_records(selected_entries,regex=regex,tags=tags, full_regex=False)
-        
+        return selected
+    
+def time_entries(args):
+        selected = common(args)
         # format for print and add overall spent time
         out = tp.print_selected(selected)
         
         tp.export_to_excel_selected(selected)
         print out
-    
+
+def moneyparser(args):
+        selected = common(args)
+        mp = MoneyParser()
+        print mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags)
+        return
+
 if __name__ == "__main__":
     
     args = ParseArguments()
@@ -557,15 +685,8 @@ if __name__ == "__main__":
     if subparser== "t":
         time_entries(args)
     elif subparser== "m":
-        # moneyparser
+        moneyparser(args)
         pass
     else:
-        pass # shouldn't happen that error
-    
-        
-        if money:
-            # money part
-            mp = MoneyParser()
-            print mp.print_money_entries(selected_entries)
-
+        pass # shouldn't happen that
 
