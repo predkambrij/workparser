@@ -429,7 +429,26 @@ class ParseArguments:
         Parse arguments
         """
         
-        argparser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest='command')
+        
+        self.parseArgsTimeEntries(subparsers)
+        self.parseArgsMoneyParser(subparsers)
+        
+        args = parser.parse_args()
+        
+        if args.command == "t": # time entries
+            self.parseArgsTimeEntriesResult(args)
+            return "t"
+        elif args.command == "m": # money parser
+            self.parseArgsMoneyParserResult(args)
+            return "m"
+        else:
+            pass #argparse will print help message
+        return
+    def parseArgsTimeEntries(self, subparsers):
+        argparser = subparsers.add_parser('t', help="Time entries")
+        
         argparser.add_argument('-d', '--day', nargs=1, type=self.checkDateFormat,
             required=False, help="set starting day (default today) in format %%d.%%m.%%Y example:(25 or 25.12 or 25.12.2013)")
         argparser.add_argument('-n', '--number', nargs=1, type=self.checkNumberOfdays,
@@ -440,9 +459,8 @@ class ParseArguments:
         argparser.add_argument('-t', '--tags', nargs=1, type=str,
             required=False, help="filter lines by tags (sparated with spaces)\n"
                                 +"Example: \"#home #python #urllib\"")
-        
-        args = argparser.parse_args()
-        
+        return
+    def parseArgsTimeEntriesResult(self, args):
         # use today if not set
         if args.day == None:
             # convert current timestamp to string and back to datetime (that only year, month and day will remain)
@@ -467,55 +485,87 @@ class ParseArguments:
             self.tags = [""]
         else:
             self.tags = args.tags
+        return
+        
+    def parseArgsMoneyParser(self, subparsers):
+        moneyparser = subparsers.add_parser('m', help="Money parser")
+        moneyparser.add_argument('-d', '--day', nargs=1, type=self.checkDateFormat,
+            required=False, help="set starting day (default today) in format %%d.%%m.%%Y example:(25 or 25.12 or 25.12.2013)")
+        
+        return
+    def parseArgsMoneyParserResult(self, args):
         
         return
 
+def time_entries(args):
+        # time entries
+        tp = TicketParser()
+        # provide list with records
+        
+        
+        # TODO - fetch if needed
+        data = tp.get_data_from_web()
+        data += tp.get_data_from_file()
+        
+        # get input (list of tags and string regex)
+        tags = tp.find_tags(args.tags[0])
+        regex = args.filter[0]
+        money = False
+        
+        # structured data
+        time_pairs,skipped = tp.parser(data)
+        
+        # even more structured data
+        all_times = tp.time_calculator(time_pairs)
+        
+        # select by first date and limit at args.number_of_days TODO months aren't implemented yet
+        num_of_days = 0
+        current_day = None
+        selected_entries = []
+        for time_entry in all_times:
+            # add entry if it's in correct date range
+            if time_entry["start_dt"] >= args.starting_day:
+                # first loop
+                if current_day == None:
+                    current_day = time_entry["start_dt"].strftime("%d.%m.%Y")
+                
+                # if day changed - count number of added days
+                if current_day != time_entry["start_dt"].strftime("%d.%m.%Y"):
+                    current_day = time_entry["start_dt"].strftime("%d.%m.%Y")
+                    num_of_days += 1
+                
+                # number of days limit
+                if args.number_of_days == num_of_days:
+                    break
+                
+                selected_entries.append(time_entry)
+        
+        # select records which match all tags AND regex
+        selected = tp.selected_records(selected_entries,regex=regex,tags=tags, full_regex=False)
+        
+        # format for print and add overall spent time
+        out = tp.print_selected(selected)
+        
+        tp.export_to_excel_selected(selected)
+        print out
+    
 if __name__ == "__main__":
     
     args = ParseArguments()
-    args.parseArguments()
+    subparser = args.parseArguments()
     
+    if subparser== "t":
+        time_entries(args)
+    elif subparser== "m":
+        # moneyparser
+        pass
+    else:
+        pass # shouldn't happen that error
     
-    tp = TicketParser()
-    
-    # provide list with records
-    
-    
-    # TODO - fetch if needed
-    data = tp.get_data_from_web()
-    data += tp.get_data_from_file()
-    
-    # get input (list of tags and string regex)
-    tags = tp.find_tags(args.tags[0])
-    regex = args.filter[0]
-    money = False
-
-    
-    
-    # structured data
-    time_pairs,skipped = tp.parser(data)
-    
-    # even more structured data
-    all_times = tp.time_calculator(time_pairs)
-    
-    # select by first date
-    selected_entries = []
-    for time_entry in all_times:
-        if time_entry["start_dt"] >= args.starting_day:
-            selected_entries.append(time_entry)
-    
-    # select records which match all tags AND regex
-    selected = tp.selected_records(selected_entries,regex=regex,tags=tags, full_regex=False)
-    
-    # format for print and add overall spent time
-    out = tp.print_selected(selected)
-    
-    tp.export_to_excel_selected(selected)
-    print out
-    
-    if money:
-        # money part
-        mp = MoneyParser()
-        print mp.print_money_entries(selected_entries)
+        
+        if money:
+            # money part
+            mp = MoneyParser()
+            print mp.print_money_entries(selected_entries)
 
 
