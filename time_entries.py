@@ -235,8 +235,10 @@ class MoneyParser:
         out 3.2€ - cocktail with strong alcohol
         
         if moneywords string has money entries temp_entry get that shape
-        {amount:{currency:cur, value:val, direction:dir}} # if money entry hasn't description
-        {amount:{currency:cur, value:val, direction:dir}, description:disc}  # if it has
+        {amount:{currency:cur, value:val, direction:dir}} # if money entry hasn't description or tags
+        {amount:{currency:cur, value:val, direction:dir}, description:disc}  # if it has description
+        {amount:{currency:cur, value:val, direction:dir}, tags:tags}  # if it has tags
+        {amount:{currency:cur, value:val, direction:dir}, description:disc, tags:tags}  # if it has description and tags
         
         result is list of temp_entry dictionaries
         
@@ -244,13 +246,13 @@ class MoneyParser:
         :type moneywords: str
         :returns: list of fine structured dictionaries (from input parameter)
         """
-        ret_list = []
+        temp_list = []
         temp_entry = {}
         
         for money_word in moneywords.split(" "):
             if (money_word.startswith("o_") or money_word.startswith("i_")) and len(money_word) >= 3:
                 if temp_entry != {}:
-                    ret_list.append(temp_entry)
+                    temp_list.append(temp_entry)
                     temp_entry = {}
                 
                 # parse currency and value
@@ -267,9 +269,26 @@ class MoneyParser:
         
         # add last entry if needed
         if temp_entry != {}:
-            ret_list.append(temp_entry)
-            temp_entry = {}
+            temp_list.append(temp_entry)
         
+        ret_list = []
+        # move tags from description section to separated dictionary entry
+        for time_entry in temp_list:
+            if not time_entry.has_key("description"):
+                ret_list.append(time_entry)
+                continue
+        
+            desc_words = []
+            tags_words = []
+            for desc_word in time_entry["description"].split():
+                if desc_word.startswith("#"):
+                    tags_words.append(desc_word)
+                else:
+                    desc_words.append(desc_word)
+            time_entry["description"] = " ".join(desc_words)
+            time_entry["tags"] = sorted(tags_words)
+            
+            ret_list.append(time_entry)
         return ret_list
     
     def parse_moneywords(self, struct):
@@ -296,7 +315,7 @@ class MoneyParser:
         else:
             ret_str += "%s: %s%s" % (direction, value, currency)
         
-        ret_str += " - " + struct["description"]
+        ret_str += " - (" + " ".join(struct["tags"]) + ") " + struct["description"]
         
         return ret_str
     
@@ -391,7 +410,8 @@ class MoneyParser:
                 # include just lines which has all required hastags (if flag isn't present ignore that condition)
                 # so skip line if doesn't meet conditions (continoue)
                 if money_tags_list == None or money_tags_list != []:
-                    tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
+                    #tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
+                    tag_words = moneypart["tags"]
                     
                     # if we want lines which doesn't have any tag
                     if money_tags == "NoTags":
@@ -430,7 +450,8 @@ class MoneyParser:
                             self.income_total[currency] = value
                             
                     # get all tags in that money entry
-                    tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
+                    #tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
+                    tag_words = moneypart["tags"]
                     
                     for tag in tag_words:
                         # make global (by_tag) dictionary instance if it's not already exists
@@ -438,10 +459,13 @@ class MoneyParser:
                             by_tag[tag] = {"in":{}, "out":{}}
                         
                         if not by_tag[tag][direction].has_key(currency):
-                            by_tag[tag][direction][currency] = {"value":0, "descs":[]}
+                            by_tag[tag][direction][currency] = {"value":0, "entries":[]}
                         
                         by_tag[tag][direction][currency]["value"] += value
-                        by_tag[tag][direction][currency]["descs"].append(moneypart["description"])
+                        
+                        # for time entry
+                        time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
+                        by_tag[tag][direction][currency]["entries"].append({"desc":moneypart["description"], "amount":value, "tags":tag_words, "time":time_dt.strftime("%d.%m")})
                         
                 else:
                     
@@ -483,13 +507,19 @@ class MoneyParser:
                                                                     sum([ by_tag[tag_x][cur][dir]["value"] for dir in by_tag[tag_x][cur].keys()]) # directions TODO I think that I'm in mistake but it works for now
                                                                                  for cur in by_tag[tag_x].keys()]), reverse=True # currencies
                                                 ):
-                ret_by_tag += "tag: %s\n" % tag
+                ret_by_tag += "\ntag: %s\n" % tag
                 for currency in sorted(list(set(by_tag[tag]["in"].keys()+by_tag[tag]["out"].keys()))):
                     if by_tag[tag]["in"].has_key(currency):
-                       ret_by_tag += "in: %d%s\n" % (by_tag[tag]["in"][currency]["value"], currency)
+                        # prepare entries for that tag
+                        # TODO
+                        ret_by_tag += "in: %d%s\n" % (by_tag[tag]["in"][currency]["value"], currency) 
                     if by_tag[tag]["out"].has_key(currency):
-                       ret_by_tag += "out: %d%s\n" % (by_tag[tag]["out"][currency]["value"], currency)
-            ret_str += ret_by_tag # TODO descriptions
+                        # prepare entries for that tag
+                        entries = sorted(by_tag[tag]["out"][currency]["entries"], key=lambda entry:entry["amount"], reverse=True)
+                        entries_str = "- "+ "\n- ".join("["+entry["time"]+"] "+entry["desc"] + " ("+"%.2f"%entry["amount"]+currency+")" for entry in entries) + "\n"
+                        
+                        ret_by_tag += "out: %d%s\n" % (by_tag[tag]["out"][currency]["value"], currency)+entries_str
+            ret_str += ret_by_tag
             ret_str += self.total_info()
         else:
             # add total also at the end
