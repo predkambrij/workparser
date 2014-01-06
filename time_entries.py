@@ -225,7 +225,7 @@ class MoneyParser:
             else:
                 self.income_total[currency] = value
     
-    def parse_moneywords(self, moneywords):
+    def split_moneywords(self, moneywords):
         """
         parse value and description from money section
         for eg. from this:
@@ -234,36 +234,71 @@ class MoneyParser:
         out 3.25€ - dancing
         out 3.2€ - cocktail with strong alcohol
         
-        also count money to class attributes
+        if moneywords string has money entries temp_entry get that shape
+        {amount:{currency:cur, value:val, direction:dir}} # if money entry hasn't description
+        {amount:{currency:cur, value:val, direction:dir}, description:disc}  # if it has
         
+        result is list of temp_entry dictionaries
+        
+        :parm moneywords: money section of time entry eg. o_3.25€ dancing o_3.2€ cocktail with strong alcohol
+        :type moneywords: str
+        :returns: list of fine structured dictionaries (from input parameter)
         """
-        ret_str = ""
-        first_word = False
+        ret_list = []
+        temp_entry = {}
+        
         for money_word in moneywords.split(" "):
             if (money_word.startswith("o_") or money_word.startswith("i_")) and len(money_word) >= 3:
+                if temp_entry != {}:
+                    ret_list.append(temp_entry)
+                    temp_entry = {}
+                
                 # parse currency and value
                 currency, value, direction = self.parse_moneyword(money_word)
                 
-                # add value to dictionaries
-                if type(value) != type(u"todo"):
-                    self.write_money_to_class_attributes(direction, currency, value)
-                
-                # build string to print entry
-                if type(value) != type(u"todo"):
-                    ret_str += "\n%s: %.2f%s" % (direction, value, currency)
-                else:
-                    ret_str += "\n%s: %s%s" % (direction, value, currency)
-                
-                # if next word will be first word then separator will be added
-                first_word = True
+                temp_entry["amount"] = {"currency":currency, "value":value, "direction":direction}
             else:
                 # it's normal (description) word not money entry (o_15.5€ for eg.)
-                if first_word == True:
-                    ret_str += " - " + money_word
-                    first_word = False
-                else:
-                    ret_str += " " + money_word
-        return ret_str[1:] # first char is whitespace
+                if temp_entry.has_key("amount"): # if junk is present of just empty input
+                    if not temp_entry.has_key("description"):
+                        temp_entry["description"] = money_word
+                    else:
+                        temp_entry["description"] += " " + money_word
+        
+        # add last entry if needed
+        if temp_entry != {}:
+            ret_list.append(temp_entry)
+            temp_entry = {}
+        
+        return ret_list
+    
+    def parse_moneywords(self, struct):
+        """
+        write nicely formated temp_entry from self.split_moneywords()
+        also count money to class attributes
+        
+        :parm struct: temp_entry dictionary from self.split_moneywords()
+        ":returns: nicely formated string
+        """
+        
+        ret_str = ""
+        
+        # rewrite for easier readability
+        currency = struct["amount"]["currency"]
+        value = struct["amount"]["value"]
+        direction = struct["amount"]["direction"]
+        
+        # build string to print entry
+        if type(value) != type(u"todo"):
+            ret_str += "%s: %.2f%s" % (direction, value, currency)
+            # add value to dictionaries
+            self.write_money_to_class_attributes(direction, currency, value)
+        else:
+            ret_str += "%s: %s%s" % (direction, value, currency)
+        
+        ret_str += " - " + struct["description"]
+        
+        return ret_str
     
     def calculate_day_balance(self, currency):
         currency_balance = 0
@@ -350,93 +385,112 @@ class MoneyParser:
         
         # go over time entries
         for time_entry in all_times:
-            moneypart = time_entry["money_part"].decode('utf-8')
+            moneyparts = time_entry["money_part"].decode('utf-8')
             
-            # include just lines which has all required hastags (if flag isn't present ignore that condition)
-            if money_tags_list == None or money_tags_list != []:
-                tag_words = [word for word in moneypart.split() if re.match("^#[a-zA-Z_]+$",word)]
-                
-                # if we want lines which doesn't have any tag
-                if money_tags == "NoTags":
-                    if len(tag_words) != 0:
-                        continue
-                else:
-                    cont = False
-                    for tag in money_tags_list:
-                        if not tag in tag_words:
-                            cont = True
-                            break
-                    if cont:
-                        continue
-                
-                # add to list of all used tags
-                for tag in tag_words:
-                    all_used_tags.add(tag)
-                
-            if show_by_tags:
-                tag_words = [word for word in moneypart.split() if re.match("^#[a-zA-Z_]+$",word)]
-                for tag in tag_words:
-                    if not by_tag.has_key(tag):
-                        by_tag[tag] = {"in":{}, "out":{}}
+            for moneypart in self.split_moneywords(moneyparts):
+                # include just lines which has all required hastags (if flag isn't present ignore that condition)
+                # so skip line if doesn't meet conditions (continoue)
+                if money_tags_list == None or money_tags_list != []:
+                    tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
                     
-                    # find money part
-                    for money_word in moneypart.split():
-                        if (money_word.startswith("o_") or money_word.startswith("i_")) and len(money_word) >= 3:
-                            # parse currency and value
-                            currency, value, direction = self.parse_moneyword(money_word)
+                    # if we want lines which doesn't have any tag
+                    if money_tags == "NoTags":
+                        if len(tag_words) != 0:
+                            continue
+                    else:
+                        cont = False
+                        for tag in money_tags_list:
+                            if not tag in tag_words:
+                                cont = True
+                                break
+                        if cont:
+                            continue
+                    
+                    # add to list of all used tags
+                    for tag in tag_words:
+                        all_used_tags.add(tag)
+                
+                # which processing we want (by tags or by time flow)
+                if show_by_tags:
+                    # rewrite for easier human readability
+                    currency = moneypart["amount"]["currency"]
+                    value = moneypart["amount"]["value"]
+                    direction = moneypart["amount"]["direction"]
+                    
+                    # write to class for total balance
+                    if direction == "out":
+                        if self.outcome_total.has_key(currency):
+                            self.outcome_total[currency] += value
+                        else:
+                            self.outcome_total[currency] = value
+                    elif direction == "in":
+                        if self.income_total.has_key(currency):
+                            self.income_total[currency] += value
+                        else:
+                            self.income_total[currency] = value
                             
-                            if not by_tag[tag][direction].has_key(currency):
-                                by_tag[tag][direction][currency] = 0
-                            
-                            by_tag[tag][direction][currency] += value
-                
-                pass
-            else:
-                
-                # skip entries which hasn't money entry
-                if moneypart == u"": continue
-                
-                # use time stamp from start time of time entry
-                time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
-                
-                # entries are sorted by time so if day changed print it
-                if day != time_dt.strftime("%d"):
-                    # don't do that on first iteration
-                    if day != "":
-                        ret_str += self.total_day_info()
-                    newday = "\nDay "+time_dt.strftime("%d.%m")+":\n"
-                    # update previous day variable
-                    day = time_dt.strftime("%d")
-                
-                if month != time_dt.strftime("%m"):
-                    if month != "":
+                    # get all tags in that money entry
+                    tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
+                    
+                    for tag in tag_words:
+                        # make global (by_tag) dictionary instance if it's not already exists
+                        if not by_tag.has_key(tag):
+                            by_tag[tag] = {"in":{}, "out":{}}
+                        
+                        if not by_tag[tag][direction].has_key(currency):
+                            by_tag[tag][direction][currency] = {"value":0, "descs":[]}
+                        
+                        by_tag[tag][direction][currency]["value"] += value
+                        by_tag[tag][direction][currency]["descs"].append(moneypart["description"])
+                        
+                else:
+                    
+                    # skip entries which hasn't money entry
+                    if moneypart["description"] == u"": continue
+                    
+                    # use time stamp from start time of time entry
+                    time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
+                    
+                    # entries are sorted by time so if day changed print it
+                    if day != time_dt.strftime("%d"):
                         # don't do that on first iteration
-                        ret_str += self.total_month_info()
-                    # update previous month variable
-                    month = time_dt.strftime("%m")
-                
-                # print new day info after total month
-                if newday != "":
-                    ret_str += newday
-                    newday = ""
-                
-                # nicely formated money -> description pairs 
-                # also count money to class attributes
-                
-                ret_str += self.parse_moneywords(moneywords=moneypart)+"\n"
+                        if day != "":
+                            ret_str += self.total_day_info()
+                        newday = "\nDay "+time_dt.strftime("%d.%m")+":\n"
+                        # update previous day variable
+                        day = time_dt.strftime("%d")
+                    
+                    if month != time_dt.strftime("%m"):
+                        if month != "":
+                            # don't do that on first iteration
+                            ret_str += self.total_month_info()
+                        # update previous month variable
+                        month = time_dt.strftime("%m")
+                    
+                    # print new day info after total month
+                    if newday != "":
+                        ret_str += newday
+                        newday = ""
+                    
+                    # nicely formated money -> description pairs 
+                    # also count money to class attributes
+                    
+                    ret_str += self.parse_moneywords(moneypart) + "\n"
         
         if show_by_tags:
             ret_by_tag = ""
-            for tag in sorted(by_tag.keys(), key=lambda tag_x:sum([ sum([ by_tag[tag_x][cur][dir] for dir in by_tag[tag_x][cur].keys()]) for cur in by_tag[tag_x].keys()]), reverse=True
+            for tag in sorted(by_tag.keys(), key=lambda tag_x:sum([
+                                                                    sum([ by_tag[tag_x][cur][dir]["value"] for dir in by_tag[tag_x][cur].keys()]) # directions TODO I think that I'm in mistake but it works for now
+                                                                                 for cur in by_tag[tag_x].keys()]), reverse=True # currencies
                                                 ):
-                #print tag, sum([ sum([ by_tag[tag][cur][dir] for dir in by_tag[tag][cur].keys()]) for cur in by_tag[tag].keys()])
                 ret_by_tag += "tag: %s\n" % tag
                 for currency in sorted(list(set(by_tag[tag]["in"].keys()+by_tag[tag]["out"].keys()))):
                     if by_tag[tag]["in"].has_key(currency):
-                       ret_by_tag += "in: %d%s\n" % (by_tag[tag]["in"][currency], currency)
+                       ret_by_tag += "in: %d%s\n" % (by_tag[tag]["in"][currency]["value"], currency)
                     if by_tag[tag]["out"].has_key(currency):
-                       ret_by_tag += "out: %d%s\n" % (by_tag[tag]["out"][currency], currency)
-            ret_str += ret_by_tag
+                       ret_by_tag += "out: %d%s\n" % (by_tag[tag]["out"][currency]["value"], currency)
+            ret_str += ret_by_tag # TODO descriptions
+            ret_str += self.total_info()
         else:
             # add total also at the end
             ret_str += self.total_day_info()
