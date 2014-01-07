@@ -745,10 +745,10 @@ def common(args):
         
         # select records which match all tags AND regex
         selected = tp.selected_records(selected_entries,regex=regex,tags=tags, full_regex=False)
-        return selected
+        return selected, tp
     
 def time_entries(args):
-        selected = common(args)
+        selected, tp = common(args)
         # format for print and add overall spent time
         out = tp.print_selected(selected)
         
@@ -756,7 +756,7 @@ def time_entries(args):
         print out
 
 def moneyparser(args):
-        selected = common(args)
+        selected, tp = common(args)
         mp = MoneyParser()
         print mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags)
         return
