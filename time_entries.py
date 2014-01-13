@@ -438,16 +438,17 @@ class MoneyParser:
                     direction = moneypart["amount"]["direction"]
                     
                     # write to class for total balance
-                    if direction == "out":
-                        if self.outcome_total.has_key(currency):
-                            self.outcome_total[currency] += value
-                        else:
-                            self.outcome_total[currency] = value
-                    elif direction == "in":
-                        if self.income_total.has_key(currency):
-                            self.income_total[currency] += value
-                        else:
-                            self.income_total[currency] = value
+                    if value != "TODO": 
+                        if direction == "out":
+                            if self.outcome_total.has_key(currency):
+                                self.outcome_total[currency] += value
+                            else:
+                                self.outcome_total[currency] = value
+                        elif direction == "in":
+                            if self.income_total.has_key(currency):
+                                self.income_total[currency] += float(value)
+                            else:
+                                self.income_total[currency] = float(value)
                             
                     # get all tags in that money entry
                     #tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
