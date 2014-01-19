@@ -471,7 +471,7 @@ class MoneyParser:
                 else:
                     
                     # skip entries which hasn't money entry
-                    if moneypart["description"] == u"": continue
+                    if (not moneypart.has_key("description")) or moneypart["description"] == u"": continue
                     
                     # use time stamp from start time of time entry
                     time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
@@ -759,7 +759,10 @@ def time_entries(args):
 def moneyparser(args):
         selected, tp = common(args)
         mp = MoneyParser()
-        print mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags)
+        if False == sys.stdout.isatty(): # pipe 
+            print mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags).encode('utf-8')
+        else: # stdout 
+            print mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags)
         return
 
 if __name__ == "__main__":
