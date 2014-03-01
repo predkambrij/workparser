@@ -754,7 +754,7 @@ def time_entries(args):
         out = tp.print_selected(selected)
         
         tp.export_to_excel_selected(selected)
-        print out
+        print out.encode('utf-8')
 
 def moneyparser(args):
         selected, tp = common(args)
