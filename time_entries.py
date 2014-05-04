@@ -23,14 +23,14 @@ class TicketParser:
             if comment[2] == "comment":
                 comments_content += comment[4] + "\n"
         
-        return (description + "\n" + comments_content).split("\n")
+        return (unicode(description + "\n" + comments_content)).split("\n")
         
     def get_data_from_file(self):
         """
         get data from file_location specified in config.py (default data.dat)
         """
         try:
-            lines = file(config.file_location,"rb").read().split("\n")
+            lines = codecs.open(config.file_location,"rb", encoding="utf-8").read().split("\n")
             selected_lines = []
             for line in lines:
                 if line.startswith("===end_of_time_entries==="):
@@ -137,7 +137,7 @@ class TicketParser:
         
     
     def print_selected(self, records,overall_time=False):
-        formated_records_list = [x["date"]+"."+x["year"]+"\t"+x["start"]+"-"+x["end"]+"\t"+x["str_diff"]+"\t"+(x["comment"] if type(x["comment"]) == type(u"") else x["comment"].decode("utf8")) for x in records]
+        formated_records_list = [x["date"]+"."+x["year"]+"\t"+x["start"]+"-"+x["end"]+"\t"+x["str_diff"]+"\t"+(x["comment"] if type(x["comment"]) == type(u"") else x["comment"]) for x in records]
                     
         formated_records = "\n".join(formated_records_list)
         all_time = sum(x["duration"] for x in records)
@@ -145,7 +145,7 @@ class TicketParser:
     
     def export_to_excel_selected(self, records,overall_time=False, skip_tags=True):
         formated_records = "\n".join([x["date"].replace(",",".")+"."+"\t"+x["start"]+"\t"+x["end"]+"\t"+x["str_diff"]+"\t"+" ".join(
-            word for word in (x["comment"] if type(x["comment"]) == type(u"") else x["comment"].decode("utf8")).split(" ") if not word.startswith("#")).strip() for x in records])
+            word for word in (x["comment"] if type(x["comment"]) == type(u"") else x["comment"]).split(" ") if not word.startswith("#")).strip() for x in records])
         #TODO codecs.open("out.xls","wb", encoding="utf-8").write(formated_records)
         return
     
@@ -404,7 +404,7 @@ class MoneyParser:
         
         # go over time entries
         for time_entry in all_times:
-            moneyparts = time_entry["money_part"].decode('utf-8')
+            moneyparts = time_entry["money_part"]
             
             for moneypart in self.split_moneywords(moneyparts):
                 # include just lines which has all required hastags (if flag isn't present ignore that condition)
@@ -452,11 +452,7 @@ class MoneyParser:
                             
                     # get all tags in that money entry
                     #tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
-                    try:
-                        tag_words = moneypart["tags"]
-                    except:
-                        pass # TODO 
-                        tag_words = []
+                    tag_words = moneypart["tags"]
                     for tag in tag_words:
                         # make global (by_tag) dictionary instance if it's not already exists
                         if not by_tag.has_key(tag):
