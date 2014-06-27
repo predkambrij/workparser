@@ -1,3 +1,4 @@
+sfefe
 # -*- coding: utf-8 -*-
 """Installer for this package."""
 
