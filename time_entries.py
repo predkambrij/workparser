@@ -707,8 +707,13 @@ def common(args):
         
         
         # TODO - fetch if needed
-        data = tp.get_data_from_web()
+        data = []
+        try:
+            data = tp.get_data_from_web()
+        except:
+            print "NOT FETCHED FROM WEB BECAUSE NETWORK ISSUES"
         data += tp.get_data_from_file()
+        #data = tp.get_data_from_file()
         
         # get input (list of tags and string regex)
         tags = tp.find_tags(args.tags[0])
