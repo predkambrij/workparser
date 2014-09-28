@@ -1,6 +1,6 @@
 # -*- coding:utf8 -*-
 import config
-import traceback, time, datetime, argparse
+import traceback, time, datetime, argparse, sys
 
 class Parser:
     def __init__(self, filename):
@@ -175,9 +175,10 @@ class Parser:
         
         return days
     
-    def select_days_by_arguments(self, all_days):
+    def select_days_by_arguments(self, all_days, working_days=False):
         """
-        Select days by self.starting_day and self.number_of_days
+        Select days by self.starting_day and self.number_of_days (forward)
+        :parm:working_days - from Monday until Friday or current day if current day didn't meet Friday yet
         """
         # copy needed day_structure dictionaries from all_days (self.starting_day and self.number_of_days)
         affected_days = []
@@ -187,36 +188,47 @@ class Parser:
         
         # number of added days
         added = 0
-        # choose needed days (in reverse) (self.starting_day and self.number_of_days)
-        for day in all_days[::-1]:
+        # choose needed days (self.starting_day and self.number_of_days)
+        for day in all_days:
             if adding == False:
                 if day["day"] == self.starting_day:
                     adding = True
             
             if adding == True:
-                affected_days.append(day)
-                added += 1
-                if added == self.number_of_days:
-                    break
+                if working_days:
+                    affected_days.append(day)
+                    added += 1
+                    if day["day"] == self.friday_day:
+                        break
+                else:
+                    affected_days.append(day)
+                    added += 1
+                    if added == self.number_of_days:
+                        break
         if added == False:
             raise Exception("Date %s didn't met\n" % self.starting_day.strftime("%d.%m.%Y"))
             
-        return affected_days[::-1]
+        return affected_days
         
-    def format_slices(self, slices, slices_title = ""):
+    def format_slices(self, r_slices, s_slices, slices_title = "", stopslices=False):
         """
         Build nicely formated string which will be output of that script
         """
         
         # structure time slices by days and calculate duration of each slice and all slices in day
-        all_days =  self.calculate_slices(slices)
-        
+        all_days =  self.calculate_slices(r_slices)
+        all_days_s =  self.calculate_slices(s_slices)
+        if stopslices==True: # TODO dirty hack, that we get also stop_slices when run_slices is requested
+            all_days=all_days_s
         # select needed days by self.starting_day and self.number_of_days
         affected_days = self.select_days_by_arguments(all_days)
+        affected_days_s = self.select_days_by_arguments(all_days_s)
+        affected_days_w = self.select_days_by_arguments(all_days, working_days=True)
+        affected_days_s_w = self.select_days_by_arguments(all_days_s, working_days=True)
         
         # final string
         ret_str = ""
-        
+
         # title
         ret_str += slices_title+"\n"
         
@@ -225,33 +237,46 @@ class Parser:
         
         # number of all days
         days_num = 0
-        
-        for day in affected_days:
-	    total_all += day["total"]
-            days_num += 1
-            
-            ret_str += "\nDay: " +day["day"].strftime("%d.%m") + "\n"
-            
-            if self.verbose == True:
-                for slice in day["slices"]:
-                    ret_str += (slice["start"].strftime("%H:%M")
-                        + " - " + slice["end"].strftime("%H:%M")
-                        + "  "+"("+self.calculate_duration(slice["duration"])+")"+"\n")
+
+        if not self.panel_format:        
+            for day in affected_days:
+	        total_all += day["total"]
+                days_num += 1
                 
-            ret_str += "Total: " + self.calculate_duration(day["total"]) + "\n"
+                ret_str += "\nDay: " +day["day"].strftime("%d.%m") + "\n"
+                
+                if self.verbose == True:
+                    for slice in day["slices"]:
+                        ret_str += (slice["start"].strftime("%H:%M")
+                            + " - " + slice["end"].strftime("%H:%M")
+                            + "  "+"("+self.calculate_duration(slice["duration"])+")"+"\n")
+                
+                ret_str += "Total: " + self.calculate_duration(day["total"]) + "\n"
         
-        ret_str += "Number of days: "+ str(days_num) + " (from "+affected_days[0]["day"].strftime("%d.%m") + " to "+ affected_days[-1]["day"].strftime("%d.%m")+ ")\n"
-        if days_num > 1:
-	    ret_str += "Total all days: " + self.calculate_duration(total_all) + "\n"
-	    ret_str += "Average per day: " + self.calculate_duration(int(total_all/float(days_num))) + "\n"
-        
+            ret_str += "Number of days: "+ str(days_num) + " (from "+affected_days[0]["day"].strftime("%d.%m") + " to "+ affected_days[-1]["day"].strftime("%d.%m")+ ")\n"
+            if days_num > 1:
+	        ret_str += "Total all days: " + self.calculate_duration(total_all) + "\n"
+	        ret_str += "Average per day: " + self.calculate_duration(int(total_all/float(days_num))) + "\n"
+        else:       # TODO stop should count from first running until last running
+            return {"total":sum([x["total"] for x in affected_days])/3600.,
+                    "total_break":sum([x["total"] for x in affected_days_s])/3600.,
+                    "total_w":sum([x["total"] for x in affected_days_w])/3600.,
+                    "total_break_w":sum([x["total"] for x in affected_days_s_w])/3600.,
+
+                    "total_today":affected_days[-1]["total"]/3600.,
+                    "total_today_break":affected_days_s[-1]["total"]/3600.,
+                        
+                    # TODO dirty hack that works after midnight (don't do that at home)
+                    "slices":(affected_days[-2]["slices"]+affected_days[-1]["slices"]) if len(affected_days) >1 else affected_days[-1]["slices"],
+                    "s_slices":(affected_days_s[-2]["slices"]+affected_days_s[-1]["slices"]) if len(affected_days_s) >1 else affected_days_s[-1]["slices"], 
+                   }
         return ret_str
     
     def parser(self):
         if self.show_stop_entries == False:
-            return self.format_slices(self.run_slices, slices_title="run_slices")
+            return self.format_slices(self.run_slices, self.stop_slices, slices_title="run_slices", stopslices=False)
         else:
-            return self.format_slices(self.stop_slices, slices_title="stop_slices")
+            return self.format_slices(self.run_slices, self.stop_slices, slices_title="stop_slices", stopslices=True)
         
     def checkNumberOfdays(self, value):
         """It have to be positive number"""
@@ -293,7 +318,7 @@ class Parser:
         else:
             # create and return datetime object from absolute time
             return datetime.datetime.fromtimestamp(day_int)
-    
+
     def argparser(self):
         """Parse values from args or use defaults"""
         argparser = argparse.ArgumentParser()
@@ -301,6 +326,7 @@ class Parser:
         argparser.add_argument('-d', '--day', nargs=1, type=self.checkDateFormat, required=False, help="set starting day (default today) in format %%d.%%m.%%Y example:(25 or 25.12 or 25.12.2013)")
         argparser.add_argument('-n', '--number', nargs=1, type=self.checkNumberOfdays,  required=False, help="display number of days (default 1) backward starting day (default today, you can customize it with --day flag)")
         argparser.add_argument('-s', '--stop-entries', action='store_true', required=False, help="displays stop sections instead running time sections")
+        argparser.add_argument('-p', '--panel-format', action='store_true', required=False, help="specific format for panel")
         # TODO min time resolution
         # list all days, first date, last date from records
         
@@ -311,21 +337,33 @@ class Parser:
         
         #show stop entries instead running entries
         self.show_stop_entries = args.stop_entries
-        
-        # use today if not set
-        if args.day == None:
-            # convert current timestamp to string and back to datetime (that only year, month and day will remain)
+
+        # hold flag
+        self.panel_format = args.panel_format
+        if self.panel_format:
+            # start - monday of current week
+            today_day_of_week = datetime.datetime.now().weekday() # (0-monday, 6-sunday)
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
             today_int = int(time.mktime(time.strptime(today_str, "%Y-%m-%d")))
-            self.starting_day = datetime.datetime.fromtimestamp(today_int)
+            self.starting_day = datetime.datetime.fromtimestamp(today_int)-datetime.timedelta(days=today_day_of_week)
+            self.friday_day = self.starting_day + datetime.timedelta(days=4)
+            #end - today
+            self.number_of_days = 999999
         else:
-            self.starting_day = args.day[0]
-        
-        # number of days to show after starting date (use as default 1 day)
-        if args.number == None:
-            self.number_of_days = 1
-        else:
-            self.number_of_days = args.number[0]
+            # use today if not set
+            if args.day == None:
+                # convert current timestamp to string and back to datetime (that only year, month and day will remain)
+                today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+                today_int = int(time.mktime(time.strptime(today_str, "%Y-%m-%d")))
+                self.starting_day = datetime.datetime.fromtimestamp(today_int)
+            else:
+                self.starting_day = args.day[0]
+            
+            # number of days to show after starting date (use as default 1 day)
+            if args.number == None:
+                self.number_of_days = 1
+            else:
+                self.number_of_days = args.number[0]
         
         #print "verbose: ", self.verbose
         #print "day: ", self.starting_day
@@ -337,7 +375,6 @@ class Parser:
     
     
 if __name__ == "__main__":
-    
     
     
     p = Parser(filename=config.time_tracking_log)
