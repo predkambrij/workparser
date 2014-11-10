@@ -407,6 +407,12 @@ class MoneyParser:
             moneyparts = time_entry["money_part"]
             
             for moneypart in self.split_moneywords(moneyparts):
+                # count tags:
+                tag_words = moneypart["tags"]
+                # add to list of all used tags
+                for tag in tag_words:
+                    all_used_tags.add(tag)
+                
                 # include just lines which has all required hastags (if flag isn't present ignore that condition)
                 # so skip line if doesn't meet conditions (continoue)
                 if money_tags_list == None or money_tags_list != []:
@@ -426,9 +432,7 @@ class MoneyParser:
                         if cont:
                             continue
                     
-                    # add to list of all used tags
-                    for tag in tag_words:
-                        all_used_tags.add(tag)
+                    
                 
                 # which processing we want (by tags or by time flow)
                 if show_by_tags:
