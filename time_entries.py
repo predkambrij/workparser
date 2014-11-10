@@ -444,12 +444,7 @@ class MoneyParser:
         
         # go over time entries
         max_i = len(all_times)-1
-        for time_entryi in range(len(all_times)):
-            time_entry = all_times[time_entryi]
-            if max_i < time_entryi+1:
-                next_time_entry = None
-            else:
-                next_time_entry = all_times[time_entryi+1]
+        for time_entry in all_times:
             moneyparts = time_entry["money_part"]
             
             for moneypart in self.split_moneywords(moneyparts):
@@ -531,7 +526,7 @@ class MoneyParser:
                     
                     # use time stamp from start time of time entry
                     time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
-                    next_time_entry_dt = datetime.datetime.fromtimestamp(next_time_entry["start_sec"]) 
+                     
                     # entries are sorted by time so if day changed print it
                     if day != time_dt.strftime("%d"):
                         # don't do that on first iteration
