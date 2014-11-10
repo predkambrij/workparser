@@ -452,7 +452,14 @@ class MoneyParser:
                             
                     # get all tags in that money entry
                     #tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
-                    tag_words = moneypart["tags"]
+                    try:
+                        tag_words = moneypart["tags"]
+                        #print moneypart.keys()
+                    except:
+                        print moneypart.keys()
+                        print repr(moneypart["amount"])
+                        print repr(time_entry)
+                        x=yyy
                     for tag in tag_words:
                         # make global (by_tag) dictionary instance if it's not already exists
                         if not by_tag.has_key(tag):

@@ -350,6 +350,7 @@ class Parser:
             #end - today
             self.number_of_days = 999999
         else:
+            self.friday_day = datetime.datetime.now() # TODO doesn't matter just that doesn't crash
             # use today if not set
             if args.day == None:
                 # convert current timestamp to string and back to datetime (that only year, month and day will remain)

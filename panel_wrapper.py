@@ -1,7 +1,18 @@
 import sys, datetime, os
 import measure_comp_time, config
+# dej nekak dodaj se uravnotezene procente (v katerem delu tega urnega intervala so pavze)
 
 class PanelFormat:
+    def __init__(self):
+        self.verbose = 0
+        if len(sys.argv) > 1:
+            self.verbose = 1
+        # monitor last X time - currently last hour
+        self.now = datetime.datetime.now()
+        self.timeDelta = datetime.timedelta(hours = 1, minutes=0)
+        self.check_point = self.now-self.timeDelta#+datetime.timedelta(seconds=1)
+        self.check_point = self.check_point.replace(microsecond=0)
+        pass
     def in_working(self):
         """
         Find if delta time (check_point) is in running slice or stop_slice
@@ -78,14 +89,8 @@ class PanelFormat:
         return summa/60.
     def process(self):
         """
-        Basic operations (initialization of variables, calling text processor and methods for processing data)
+        Basic operations (calling text processor and methods for processing data)
         """
-        self.verbose = 0
-        # monitor last X time - currently last hour
-        self.now = datetime.datetime.now()
-        self.timeDelta = datetime.timedelta(hours = 1, minutes=0)
-        self.check_point = self.now-self.timeDelta#+datetime.timedelta(seconds=1)
-        self.check_point = self.check_point.replace(microsecond=0)
         # process text file
         p = measure_comp_time.Parser(filename=config.time_tracking_log)
 
@@ -131,21 +136,25 @@ class PanelFormat:
         """
         # break in last self.timeDelta
         break_duration = self.sum_stop_slices()
+        padding=""
         if break_duration <= 1:
             color="bgcolor='red'"
-        elif break_duration <= 20:
+            padding="  "
+        elif break_duration <= 15:
             color="bgcolor='orange'"
+            padding=" "
         else:
             color=""
-        sum_break_duration="<span %s>%.0f</span>" % (color, break_duration)
+        sum_break_duration="<span %s>%s%.0f%s</span>" % (color, padding, break_duration, padding)
 
         # running in last self.timeDelta
         sum_running_duration = "%.0f" % (self.sum_running_slices())
-
+        is_it_working = "%s" % datetime.datetime.now().strftime("%H:%M")
         # format everything together (for Generic Monitor)
-        return ("<txt>%.1f_%.1f hours (%s-%s m)</txt>"
+        return ("<txt>%.1f_%.1f hours (%s-%s m) %s LOG?</txt>"
                 +"<tool>%.1f_%.1f week hours // %.1f_%.1f mon-fri hours</tool>") % (
                             self.day_total,self.day_total_b, sum_running_duration,sum_break_duration,
+                            is_it_working,
                             self.total, self.total_b,self.total_w, self.total_b_w)
 if __name__ == "__main__":
     P = PanelFormat()
