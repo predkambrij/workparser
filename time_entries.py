@@ -155,6 +155,8 @@ class MoneyParser:
         # group by day and month
         self.day_income_total = {}
         self.day_outcome_total = {}
+        self.week_income_total = {}
+        self.week_outcome_total = {}
         self.month_income_total = {}
         self.month_outcome_total = {}
         self.income_total = {}
@@ -195,6 +197,12 @@ class MoneyParser:
             else:
                 self.day_outcome_total[currency] = value
             
+            # weekly
+            if self.week_outcome_total.has_key(currency):
+                self.week_outcome_total[currency] += value
+            else:
+                self.week_outcome_total[currency] = value
+            
             # monthly
             if self.month_outcome_total.has_key(currency):
                 self.month_outcome_total[currency] += value
@@ -212,6 +220,12 @@ class MoneyParser:
                 self.day_income_total[currency] += value
             else:
                 self.day_income_total[currency] = value
+            
+            # weekly
+            if self.week_income_total.has_key(currency):
+                self.week_income_total[currency] += value
+            else:
+                self.week_income_total[currency] = value
             
             # monthly
             if self.month_income_total.has_key(currency):
@@ -331,6 +345,18 @@ class MoneyParser:
             outcome = self.day_outcome_total[currency]
         return currency_balance, income, outcome
     
+    def calculate_week_balance(self, currency):
+        currency_balance = 0
+        income = 0
+        outcome = 0
+        if self.week_income_total.has_key(currency):
+            currency_balance += self.week_income_total[currency]
+            income = self.week_income_total[currency]
+        if self.week_outcome_total.has_key(currency):
+            currency_balance -= self.week_outcome_total[currency]
+            outcome = self.week_outcome_total[currency]
+        return currency_balance, income, outcome
+    
     def calculate_month_balance(self, currency):
         currency_balance = 0
         income = 0
@@ -364,6 +390,18 @@ class MoneyParser:
                             currency_balance, currency, outcome, currency, income, currency)
         self.day_income_total = {}
         self.day_outcome_total = {}
+        return ret_str
+    
+    def total_week_info(self):
+        ret_str = ""
+        currences = list(set(self.week_income_total.keys()
+                             +self.week_outcome_total.keys()))
+        for currency in currences:
+            currency_balance, income, outcome  = self.calculate_week_balance(currency)
+            ret_str += "Total week balance %.2f %s | out %.2f %s | in %.2f %s\n" % (
+                            currency_balance, currency, outcome, currency, income, currency)
+        self.week_income_total = {}
+        self.week_outcome_total = {}
         return ret_str
     
     def total_month_info(self):
@@ -401,9 +439,17 @@ class MoneyParser:
         day=""
         month=""
         newday=""
+        prevDayForWeek=None
+        lastNotedDayForWeek=None
         
         # go over time entries
-        for time_entry in all_times:
+        max_i = len(all_times)-1
+        for time_entryi in range(len(all_times)):
+            time_entry = all_times[time_entryi]
+            if max_i < time_entryi+1:
+                next_time_entry = None
+            else:
+                next_time_entry = all_times[time_entryi+1]
             moneyparts = time_entry["money_part"]
             
             for moneypart in self.split_moneywords(moneyparts):
@@ -485,7 +531,7 @@ class MoneyParser:
                     
                     # use time stamp from start time of time entry
                     time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
-                    
+                    next_time_entry_dt = datetime.datetime.fromtimestamp(next_time_entry["start_sec"]) 
                     # entries are sorted by time so if day changed print it
                     if day != time_dt.strftime("%d"):
                         # don't do that on first iteration
@@ -494,6 +540,16 @@ class MoneyParser:
                         newday = "\nDay "+time_dt.strftime("%d.%m")+":\n"
                         # update previous day variable
                         day = time_dt.strftime("%d")
+                    
+                    if prevDayForWeek == None:
+                        prevDayForWeek = time_dt
+                        lastNotedDayForWeek = time_dt
+                    
+                    if ((time_dt - lastNotedDayForWeek) > datetime.timedelta(days=7) or
+                        (time_dt.weekday() < prevDayForWeek.weekday())):
+                        lastNotedDayForWeek = time_dt
+                        ret_str += self.total_week_info()
+                    prevDayForWeek = time_dt
                     
                     if month != time_dt.strftime("%m"):
                         if month != "":
@@ -535,6 +591,7 @@ class MoneyParser:
         else:
             # add total also at the end
             ret_str += self.total_day_info()
+            ret_str += self.total_week_info()
             ret_str += self.total_month_info()
             ret_str += self.total_info()
         
