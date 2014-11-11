@@ -803,10 +803,8 @@ def common(args):
                 # if day changed - count number of added days
                 if current_day != time_entry["start_dt"].strftime("%d.%m.%Y"):
                     current_day = time_entry["start_dt"].strftime("%d.%m.%Y")
-                    num_of_days += 1
                 
-                # number of days limit
-                if args.number_of_days == num_of_days:
+                if args.starting_day + datetime.timedelta(days=args.number_of_days) < time_entry["start_dt"]:
                     break
                 
                 selected_entries.append(time_entry)
