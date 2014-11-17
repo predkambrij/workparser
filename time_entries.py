@@ -691,10 +691,15 @@ class MoneyParser:
             ret_str += self.total_info()
         else:
             # excel string at the end
-            excel_string += "%s\t%s\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
-                                            time_dt.strftime("%d.%m"),
-                                            self.total_week_info_excel(),
-                                            )
+            excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
+                                                        time_dt.strftime("%d.%m"),
+                                                        self.total_week_info_excel(),
+                                                        tags_exc,
+                                                        o_redni_futr_razv,
+                                                        o,
+                                                        cms[:-2],
+                                                        )
+                        
             codecs.open("week_export.xsl","wb", encoding="utf-8").write(excel_string)
             # add total also at the end
             ret_str += self.total_day_info()
