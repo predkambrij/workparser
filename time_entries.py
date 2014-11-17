@@ -157,6 +157,8 @@ class MoneyParser:
         self.day_outcome_total = {}
         self.week_income_total = {}
         self.week_outcome_total = {}
+        self.week_2l_income_total = {}
+        self.week_2l_outcome_total = {}
         self.month_income_total = {}
         self.month_outcome_total = {}
         self.income_total = {}
@@ -403,6 +405,26 @@ class MoneyParser:
         self.week_income_total = {}
         self.week_outcome_total = {}
         return ret_str
+    def total_week_info_excel(self):
+        """
+        same as total_week_info but output for excel and it doesn't reset self.week_(in/out)come_total
+        """
+        mandatory_excel_currencies = [u"S", u"\u20ac"] # SEK and € (in that order)
+        ret_str = ""
+        currences = self.week_income_total.keys()+self.week_outcome_total.keys()
+        
+        # complement (currences minus mandatory_excel_currencies)
+        compl = [x for x in currences if not x in mandatory_excel_currencies]
+        
+        all_currences = mandatory_excel_currencies+compl
+        for currency in all_currences:
+            currency_balance, income, outcome  = self.calculate_week_balance(currency)
+            if currency in currences:
+                ret_str += "%.2f\t%.2f\t%.2f\t" % (currency_balance, outcome, income)
+            else:
+                ret_str += "%.2f\t%.2f\t%.2f\t" % (0, 0, 0)
+        
+        return ret_str[:-1]
     
     def total_month_info(self):
         ret_str = ""
@@ -442,6 +464,9 @@ class MoneyParser:
         prevDayForWeek=None
         lastNotedDayForWeek=None
         
+        # excel export
+        excel_string = ""
+        
         # go over time entries
         max_i = len(all_times)-1
         for time_entry in all_times:
@@ -476,12 +501,13 @@ class MoneyParser:
                     
                 
                 # which processing we want (by tags or by time flow)
+                # there was only if by tags, let's calculate it anyway because of excel export
+                # rewrite for easier human readability
+                currency = moneypart["amount"]["currency"]
+                value = moneypart["amount"]["value"]
+                direction = moneypart["amount"]["direction"]
+                
                 if show_by_tags:
-                    # rewrite for easier human readability
-                    currency = moneypart["amount"]["currency"]
-                    value = moneypart["amount"]["value"]
-                    direction = moneypart["amount"]["direction"]
-                    
                     # write to class for total balance
                     if value != "TODO": 
                         if direction == "out":
@@ -494,38 +520,37 @@ class MoneyParser:
                                 self.income_total[currency] += float(value)
                             else:
                                 self.income_total[currency] = float(value)
-                            
-                    # get all tags in that money entry
-                    #tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
-                    try:
-                        tag_words = moneypart["tags"]
-                        #print moneypart.keys()
-                    except:
-                        print moneypart.keys()
-                        print repr(moneypart["amount"])
-                        print repr(time_entry)
-                        x=yyy
-                    for tag in tag_words:
-                        # make global (by_tag) dictionary instance if it's not already exists
-                        if not by_tag.has_key(tag):
-                            by_tag[tag] = {"in":{}, "out":{}}
                         
-                        if not by_tag[tag][direction].has_key(currency):
-                            by_tag[tag][direction][currency] = {"value":0, "entries":[]}
-                        
-                        by_tag[tag][direction][currency]["value"] += value
-                        
-                        # for time entry
-                        time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
-                        by_tag[tag][direction][currency]["entries"].append({"desc":moneypart["description"], "amount":value, "tags":tag_words, "time":time_dt.strftime("%d.%m")})
-                        
-                else:
+                # get all tags in that money entry
+                #tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
+                try:
+                    tag_words = moneypart["tags"]
+                    #print moneypart.keys()
+                except:
+                    print moneypart.keys()
+                    print repr(moneypart["amount"])
+                    print repr(time_entry)
+                    x=yyy # crash TODO
+                
+                time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
+                for tag in tag_words:
+                    # make global (by_tag) dictionary instance if it's not already exists
+                    if not by_tag.has_key(tag):
+                        by_tag[tag] = {"in":{}, "out":{}}
+                    
+                    if not by_tag[tag][direction].has_key(currency):
+                        by_tag[tag][direction][currency] = {"value":0, "entries":[]}
+                    
+                    by_tag[tag][direction][currency]["value"] += value
+                    
+                    # for time entry
+                    by_tag[tag][direction][currency]["entries"].append({"desc":moneypart["description"], "amount":value, "tags":tag_words, "time":time_dt.strftime("%d.%m")})
+                
+                ### not by tags
+                if not show_by_tags:
                     
                     # skip entries which hasn't money entry
                     if (not moneypart.has_key("description")) or moneypart["description"] == u"": continue
-                    
-                    # use time stamp from start time of time entry
-                    time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
                      
                     # entries are sorted by time so if day changed print it
                     if day != time_dt.strftime("%d"):
@@ -536,14 +561,25 @@ class MoneyParser:
                         # update previous day variable
                         day = time_dt.strftime("%d")
                     
+                    # week entry
                     if prevDayForWeek == None:
                         prevDayForWeek = time_dt
                         lastNotedDayForWeek = time_dt
                     
+                    # difference 7 days or it's surely new week
                     if ((time_dt - lastNotedDayForWeek) > datetime.timedelta(days=7) or
-                        (time_dt.weekday() < prevDayForWeek.weekday())):
+                            (time_dt.weekday() < prevDayForWeek.weekday())):
+                        # excel string
+                        excel_string += "%s\t%s\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
+                                                        time_dt.strftime("%d.%m"),
+                                                        self.total_week_info_excel(),
+                                                        )
+                        
                         lastNotedDayForWeek = time_dt
                         ret_str += self.total_week_info()
+                        
+                        
+                        
                     prevDayForWeek = time_dt
                     
                     if month != time_dt.strftime("%m"):
@@ -584,6 +620,12 @@ class MoneyParser:
             ret_str += ret_by_tag
             ret_str += self.total_info()
         else:
+            # excel string at the end
+            excel_string += "%s\t%s\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
+                                            time_dt.strftime("%d.%m"),
+                                            self.total_week_info_excel(),
+                                            )
+            codecs.open("week_export.xsl","wb", encoding="utf-8").write(excel_string)
             # add total also at the end
             ret_str += self.total_day_info()
             ret_str += self.total_week_info()
