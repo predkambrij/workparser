@@ -67,9 +67,14 @@ class TicketParser:
                 try:
                     days[-1][2].append(stripped_line)
                 except: skipped_days.append(stripped_line) 
+            elif re.match("^[0-9]{1,2}:[0-9]{2}[ ]*-[ ]*=[ ]*.*$", stripped_line):
+                # add new day entry (unfinished entry)
+                try:
+                    days[-1][2].append(stripped_line)
+                except: skipped_days.append(stripped_line)
             else:
                 # unparsable line
-                skipped_days.append(stripped_line)
+                skipped_days.append(days[-1][0]+"."+days[-1][1]+" :: "+stripped_line)
         return days,skipped_days
     
     def mock_date(self, date,year,start,end,ret=""):
@@ -107,8 +112,12 @@ class TicketParser:
                 comment, money_part, real_comment = comment.strip(), money_part.strip(), real_comment.strip()
                 
                 start_sec = int(time.mktime(time.strptime(date+"."+year+" "+start, "%d.%m.%Y %H:%M")))
-                end_sec = int(time.mktime(time.strptime(self.mock_date(date,year,start,end)+"."+year+" "+end, "%d.%m.%Y %H:%M")))
-    
+                if unicode(end).strip() == u"":
+                    # unfinished entry
+                    end_sec = start_sec+60
+                else:
+                    end_sec = int(time.mktime(time.strptime(self.mock_date(date,year,start,end)+"."+year+" "+end, "%d.%m.%Y %H:%M")))
+                
                 str_diff = self.format_seconds(end_sec-start_sec)
                 ndays.append({"year":year,"date":date,"start":start,"end":end,
                     "duration":(end_sec-start_sec),"str_diff":str_diff,
@@ -241,7 +250,7 @@ class MoneyParser:
             else:
                 self.income_total[currency] = value
     
-    def split_moneywords(self, moneywords):
+    def split_moneywords(self, moneywords, str_time):
         """
         parse value and description from money section
         for eg. from this:
@@ -282,7 +291,11 @@ class MoneyParser:
                         temp_entry["description"] = money_word
                     else:
                         temp_entry["description"] += " " + money_word
-        
+                elif len(money_word) == 0:
+                    pass # it's ok, just empty string
+                else:
+                    raise ValueError("wrong formated money part: ["+str_time+"] "+money_word)
+                    
         # add last entry if needed
         if temp_entry != {}:
             temp_list.append(temp_entry)
@@ -470,11 +483,25 @@ class MoneyParser:
         # go over time entries
         max_i = len(all_times)-1
         for time_entry in all_times:
+            str_time = datetime.datetime.fromtimestamp(time_entry["start_sec"]).strftime("%d.%m")
             moneyparts = time_entry["money_part"]
             
-            for moneypart in self.split_moneywords(moneyparts):
+            for moneypart in self.split_moneywords(moneyparts, str_time):
                 # count tags:
+                try:
+                    if len(moneypart["description"]) == 0:
+                        moneypart["description"] = u"no description"
+                except:
+                    moneypart["description"] = u"no description" 
+                try:
+                    if len(moneypart["tags"])==0:
+                        moneypart["tags"] = [u'#notag']
+                except:
+                    moneypart["tags"] = [u'#notag']
+                
                 tag_words = moneypart["tags"]
+                if len(tag_words) > 1:
+                    print "more than one: "+str_time+"||"+ repr(moneypart)
                 # add to list of all used tags
                 for tag in tag_words:
                     all_used_tags.add(tag)
@@ -569,10 +596,53 @@ class MoneyParser:
                     # difference 7 days or it's surely new week
                     if ((time_dt - lastNotedDayForWeek) > datetime.timedelta(days=7) or
                             (time_dt.weekday() < prevDayForWeek.weekday())):
+                        
+                        tags_exc = ""
+                        fs = 0
+                        rs = 0
+                        f_flag = False
+                        r_flag= False
+                        cms = "" # comment string
+                        # ostalo-redni (S)
+                        o = 0
+                        # ostalo -redni-futr-razv
+                        o_redni_futr_razv = 0
+                        
+                        for k in sorted(by_tag.keys(), key=lambda x:(x == u"#redni" or x)):
+                            if by_tag[k].has_key("out"):
+                                for cur in sorted(by_tag[k]["out"].keys(),
+                                                  key=lambda x:(x == u"\u20ac" or x)):
+                                    if by_tag[k]["out"][cur]["value"] > 0.00001:
+                                        cms += "%s:%.2f%s, " % (k, by_tag[k]["out"][cur]["value"], cur)
+                                    if cur == u"\u20ac": # TODO reset € it's not processed further
+                                        by_tag[k]["out"][cur]["value"] = 0
+                                if by_tag[k]["out"].has_key(u"S"):
+                                    if k == u"#redni":
+                                        # we don't add #redni and it's already noted in cms
+                                        by_tag[k]["out"][u"S"]["value"] = 0 
+                                        continue
+                                    o += by_tag[k]["out"][u"S"]["value"]
+                                    
+                                    if k == u"#futr":
+                                        fs += by_tag[u"#futr"]["out"][u"S"]["value"]
+                                        by_tag[u"#futr"]["out"][u"S"]["value"] = 0
+                                    
+                                    if k == u"#razv":
+                                        rs += by_tag[u"#razv"]["out"][u"S"]["value"]
+                                        by_tag[u"#razv"]["out"][u"S"]["value"] = 0
+                                    
+                                    o_redni_futr_razv += by_tag[k]["out"][u"S"]["value"]
+                                    by_tag[k]["out"][u"S"]["value"] = 0
+                        tags_exc += "%.2f\t%.2f" % (fs, rs)
+                        
                         # excel string
-                        excel_string += "%s\t%s\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
+                        excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
                                                         time_dt.strftime("%d.%m"),
                                                         self.total_week_info_excel(),
+                                                        tags_exc,
+                                                        o_redni_futr_razv,
+                                                        o,
+                                                        cms[:-2],
                                                         )
                         
                         lastNotedDayForWeek = time_dt
@@ -827,7 +897,10 @@ def common(args):
         
         # structured data
         time_pairs,skipped = tp.parser(data)
+        if len("\n".join(skipped).strip()) != 0:
+            raise ValueError("SKIPPED LINES: "+"\n".join(skipped))
         
+    
         # even more structured data
         all_times = tp.time_calculator(time_pairs)
         
