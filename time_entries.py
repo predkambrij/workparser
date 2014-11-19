@@ -499,7 +499,46 @@ class MoneyParser:
             by_tag[tag][direction][currency]["entries"].append(
                 {"desc":moneypart["description"], "amount":value, "tags":tag_words,
                  "time":time_dt.strftime("%d.%m")})
+    def calculate_tagsExc(self, by_tag):
+        tags_exc = ""
+        cms = "" # comment string
+        fs = 0
+        rs = 0
+        sums = 0 # sum SEK all tags together (verification)
+        # ostalo-redni (S)
+        o = 0
+        # ostalo -redni-futr-razv
+        o_redni_futr_razv = 0
+        
+        for k in sorted(by_tag.keys(), key=lambda x:(x == u"#redni" or x)):
+            if by_tag[k].has_key("out"):
+                for cur in sorted(by_tag[k]["out"].keys(),
+                                  key=lambda x:(x == u"\u20ac" or x)):
+                    if by_tag[k]["out"][cur]["value"] > 0.00001:
+                        cms += "%s:%.2f%s, " % (k, by_tag[k]["out"][cur]["value"], cur)
+                    if cur == u"\u20ac": # TODO reset € it's not processed further
+                        by_tag[k]["out"][cur]["value"] = 0
+                if by_tag[k]["out"].has_key(u"S"):
+                    # all tags together
+                    sums += by_tag[k]["out"][u"S"]["value"]
+                    if k == u"#redni":
+                        # we don't add #redni and it's already noted in cms
+                        by_tag[k]["out"][u"S"]["value"] = 0 
+                        continue
+                    o += by_tag[k]["out"][u"S"]["value"]
                     
+                    if k == u"#futr":
+                        fs += by_tag[u"#futr"]["out"][u"S"]["value"]
+                        by_tag[u"#futr"]["out"][u"S"]["value"] = 0
+                    
+                    if k == u"#razv":
+                        rs += by_tag[u"#razv"]["out"][u"S"]["value"]
+                        by_tag[u"#razv"]["out"][u"S"]["value"] = 0
+                    
+                    o_redni_futr_razv += by_tag[k]["out"][u"S"]["value"]
+                    by_tag[k]["out"][u"S"]["value"] = 0
+        tags_exc += "%.2f\t%.2f\t%.2f" % (sums, fs, rs)
+        return tags_exc, o_redni_futr_razv, o, cms
     def print_money_entries(self, all_times, money_tags, list_money_tags, show_by_tags):
         """
         :parm:all_times - output of time_calculator in relevant time interval
@@ -594,10 +633,9 @@ class MoneyParser:
                 
                 ### not by tags
                 if not show_by_tags:
-                    
                     # skip entries which hasn't money entry
                     if (not moneypart.has_key("description")) or moneypart["description"] == u"": continue
-                     
+                    # inputs: 
                     # entries are sorted by time so if day changed print it
                     if day != time_dt.strftime("%d"):
                         # don't do that on first iteration
@@ -616,59 +654,20 @@ class MoneyParser:
                     if ((time_dt - lastNotedDayForWeek) > datetime.timedelta(days=7) or
                             (time_dt.weekday() < prevDayForWeek.weekday())):
                         
-                        tags_exc = ""
-                        cms = "" # comment string
-                        fs = 0
-                        rs = 0
-                        sums = 0 # sum SEK all tags together (verification)
-                        # ostalo-redni (S)
-                        o = 0
-                        # ostalo -redni-futr-razv
-                        o_redni_futr_razv = 0
-                        
-                        for k in sorted(by_tag.keys(), key=lambda x:(x == u"#redni" or x)):
-                            if by_tag[k].has_key("out"):
-                                for cur in sorted(by_tag[k]["out"].keys(),
-                                                  key=lambda x:(x == u"\u20ac" or x)):
-                                    if by_tag[k]["out"][cur]["value"] > 0.00001:
-                                        cms += "%s:%.2f%s, " % (k, by_tag[k]["out"][cur]["value"], cur)
-                                    if cur == u"\u20ac": # TODO reset € it's not processed further
-                                        by_tag[k]["out"][cur]["value"] = 0
-                                if by_tag[k]["out"].has_key(u"S"):
-                                    # all tags together
-                                    sums += by_tag[k]["out"][u"S"]["value"]
-                                    if k == u"#redni":
-                                        # we don't add #redni and it's already noted in cms
-                                        by_tag[k]["out"][u"S"]["value"] = 0 
-                                        continue
-                                    o += by_tag[k]["out"][u"S"]["value"]
-                                    
-                                    if k == u"#futr":
-                                        fs += by_tag[u"#futr"]["out"][u"S"]["value"]
-                                        by_tag[u"#futr"]["out"][u"S"]["value"] = 0
-                                    
-                                    if k == u"#razv":
-                                        rs += by_tag[u"#razv"]["out"][u"S"]["value"]
-                                        by_tag[u"#razv"]["out"][u"S"]["value"] = 0
-                                    
-                                    o_redni_futr_razv += by_tag[k]["out"][u"S"]["value"]
-                                    by_tag[k]["out"][u"S"]["value"] = 0
-                        tags_exc += "%.2f\t%.2f\t%.2f" % (sums, fs, rs)
-                        
                         # excel string
-                        excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
-                                                        time_dt.strftime("%d.%m"),
-                                                        self.total_week_info_excel(),
-                                                        tags_exc,
-                                                        o_redni_futr_razv,
-                                                        o,
-                                                        cms[:-2],
-                                                        )
+                        tags_exc, o_redni_futr_razv, o, cms = self.calculate_tagsExc(by_tag)
+                        excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (
+                            lastNotedDayForWeek.strftime("%d.%m"),
+                            time_dt.strftime("%d.%m"),
+                            self.total_week_info_excel(),
+                            tags_exc,
+                            o_redni_futr_razv,
+                            o,
+                            cms[:-2],
+                            )
                         
                         lastNotedDayForWeek = time_dt
                         ret_str += self.total_week_info()
-                        
-                        
                         
                     prevDayForWeek = time_dt
                     
@@ -712,13 +711,13 @@ class MoneyParser:
         else:
             # excel string at the end
             excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
-                                                        time_dt.strftime("%d.%m"),
-                                                        self.total_week_info_excel(),
-                                                        tags_exc,
-                                                        o_redni_futr_razv,
-                                                        o,
-                                                        cms[:-2],
-                                                        )
+                time_dt.strftime("%d.%m"),
+                self.total_week_info_excel(),
+                tags_exc,
+                o_redni_futr_razv,
+                o,
+                cms[:-2],
+                )
                         
             codecs.open("week_export.xsl","wb", encoding="utf-8").write(excel_string)
             # add total also at the end
