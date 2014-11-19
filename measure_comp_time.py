@@ -1,5 +1,5 @@
 # -*- coding:utf8 -*-
-import config
+import ticketparser.config
 import traceback, time, datetime, argparse, sys
 
 class Parser:
@@ -378,7 +378,7 @@ class Parser:
 if __name__ == "__main__":
     
     
-    p = Parser(filename=config.time_tracking_log)
+    p = Parser(filename=ticketparser.config.Config.time_tracking_log)
     
     # parse settings from arguments or use defaults
     p.argparser()

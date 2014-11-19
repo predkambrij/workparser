@@ -1,5 +1,6 @@
 import sys, datetime, os
-import measure_comp_time, config
+import measure_comp_time
+import ticketparser.config
 # dej nekak dodaj se uravnotezene procente (v katerem delu tega urnega intervala so pavze)
 
 class PanelFormat:
@@ -92,7 +93,7 @@ class PanelFormat:
         Basic operations (calling text processor and methods for processing data)
         """
         # process text file
-        p = measure_comp_time.Parser(filename=config.time_tracking_log)
+        p = measure_comp_time.Parser(filename=ticketparser.config.Config.time_tracking_log)
 
         # settings from arguments for panel format
         cur_argv = sys.argv[:] # save current arguments (deep copy)
