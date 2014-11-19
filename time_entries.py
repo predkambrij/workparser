@@ -178,6 +178,9 @@ class MoneyParser:
         
         self.default_currency = u"€"
         
+        # for -l flag
+        self.all_used_tags = set()
+        
         
     def parse_moneyword(self, money_word):
         """
@@ -462,14 +465,64 @@ class MoneyParser:
                     currency_balance, currency, outcome, currency, income, currency)
         return ret_str
     
+    def write_to_class_for_total_balance(self, value, direction, currency):
+        if value != "TODO": 
+            if direction == "out":
+                if self.outcome_total.has_key(currency):
+                    self.outcome_total[currency] += value
+                else:
+                    self.outcome_total[currency] = value
+            elif direction == "in":
+                if self.income_total.has_key(currency):
+                    self.income_total[currency] += float(value)
+                else:
+                    self.income_total[currency] = float(value)
+    def update_list_tags(self, tag_words):
+        # add to list of all used tags (for -l flag)
+        for tag in tag_words:
+            self.all_used_tags.add(tag)
+    def update_bytag(self, by_tag, moneypart, tag_words, time_dt):
+        currency = moneypart["amount"]["currency"]
+        value = moneypart["amount"]["value"]
+        direction = moneypart["amount"]["direction"]
+        for tag in tag_words:
+            # make global (by_tag) dictionary instance if it's not already exists
+            if not by_tag.has_key(tag):
+                by_tag[tag] = {"in":{}, "out":{}}
+            
+            if not by_tag[tag][direction].has_key(currency):
+                by_tag[tag][direction][currency] = {"value":0, "entries":[]}
+            
+            by_tag[tag][direction][currency]["value"] += value
+            
+            # for time entry
+            by_tag[tag][direction][currency]["entries"].append(
+                {"desc":moneypart["description"], "amount":value, "tags":tag_words,
+                 "time":time_dt.strftime("%d.%m")})
+                    
     def print_money_entries(self, all_times, money_tags, list_money_tags, show_by_tags):
+        """
+        :parm:all_times - output of time_calculator in relevant time interval
+        Example:
+        9:20-9:50 = comment of the task !# o_123S #moneyhashtag strong wiskey o_456S #anotherHT eggs
+        [{'comment': u'comment of the task',
+        'money_part': u'o_123S #moneyhashtag strong wiskey o_456S #anotherHT eggs',
+        'start_sec': 1415089200, 'real_comment': '', 'duration': 1800, 'str_diff': '30m',
+        'year': u'2014', 'date': u'4.11', 'end': u'9:50', 'start': u'9:20',
+        'start_dt': datetime.datetime(2014, 11, 4, 9, 20)}, 
+        ... ]
+        :parm:money_tags -m flag (filter)
+        :parm:list_money_tags -l flag
+        :parm:show_by_tags -s flag
+        look at parseArgsMoneyParser() for description
+        """
+        # end string
         ret_str = ""
         if money_tags != "NoTags":
             money_tags_list = money_tags.split()
         else:
             money_tags_list = None
-            
-        all_used_tags = set()
+        
         
         by_tag = {}
         
@@ -490,7 +543,7 @@ class MoneyParser:
             moneyparts = time_entry["money_part"]
             
             for moneypart in self.split_moneywords(moneyparts, str_time):
-                # count tags:
+                # if description or tags aren't given - give them special name
                 try:
                     if len(moneypart["description"]) == 0:
                         moneypart["description"] = u"no description"
@@ -502,19 +555,17 @@ class MoneyParser:
                 except:
                     moneypart["tags"] = [u'#notag']
                 
+                # process the tags
                 tag_words = moneypart["tags"]
                 if len(tag_words) > 1:
-                    print "more than one: "+str_time+"||"+ repr(moneypart)
-                # add to list of all used tags
-                for tag in tag_words:
-                    all_used_tags.add(tag)
+                    print "more than one tag for the same transaction: "+str_time+"||"+ repr(moneypart)
+                
+                # for -l flag
+                self.update_list_tags(tag_words)
                 
                 # include just lines which has all required hastags (if flag isn't present ignore that condition)
                 # so skip line if doesn't meet conditions (continoue)
                 if money_tags_list == None or money_tags_list != []:
-                    #tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
-                    tag_words = moneypart["tags"]
-                    
                     # if we want lines which doesn't have any tag
                     if money_tags == "NoTags":
                         if len(tag_words) != 0:
@@ -527,8 +578,6 @@ class MoneyParser:
                                 break
                         if cont:
                             continue
-                    
-                    
                 
                 # which processing we want (by tags or by time flow)
                 # there was only if by tags, let's calculate it anyway because of excel export
@@ -538,43 +587,10 @@ class MoneyParser:
                 direction = moneypart["amount"]["direction"]
                 
                 if show_by_tags:
-                    # write to class for total balance
-                    if value != "TODO": 
-                        if direction == "out":
-                            if self.outcome_total.has_key(currency):
-                                self.outcome_total[currency] += value
-                            else:
-                                self.outcome_total[currency] = value
-                        elif direction == "in":
-                            if self.income_total.has_key(currency):
-                                self.income_total[currency] += float(value)
-                            else:
-                                self.income_total[currency] = float(value)
-                        
-                # get all tags in that money entry
-                #tag_words = [word for word in moneypart["description"].split() if re.match("^#[a-zA-Z_]+$",word)]
-                try:
-                    tag_words = moneypart["tags"]
-                    #print moneypart.keys()
-                except:
-                    print moneypart.keys()
-                    print repr(moneypart["amount"])
-                    print repr(time_entry)
-                    x=yyy # crash TODO
+                    self.write_to_class_for_total_balance(value, direction, currency)
                 
                 time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
-                for tag in tag_words:
-                    # make global (by_tag) dictionary instance if it's not already exists
-                    if not by_tag.has_key(tag):
-                        by_tag[tag] = {"in":{}, "out":{}}
-                    
-                    if not by_tag[tag][direction].has_key(currency):
-                        by_tag[tag][direction][currency] = {"value":0, "entries":[]}
-                    
-                    by_tag[tag][direction][currency]["value"] += value
-                    
-                    # for time entry
-                    by_tag[tag][direction][currency]["entries"].append({"desc":moneypart["description"], "amount":value, "tags":tag_words, "time":time_dt.strftime("%d.%m")})
+                self.update_bytag(by_tag, moneypart, tag_words, time_dt)
                 
                 ### not by tags
                 if not show_by_tags:
@@ -713,8 +729,8 @@ class MoneyParser:
         
         if list_money_tags:
             ret_str += "\nUsed tags (%d): \"%s\"" % (
-                len(all_used_tags),
-                " ".join(sorted(list(all_used_tags))))
+                len(self.all_used_tags),
+                " ".join(sorted(list(self.all_used_tags))))
         return ret_str
 
 class ParseArguments:
