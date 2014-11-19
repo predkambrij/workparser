@@ -1,5 +1,6 @@
 # -*- coding:utf8 -*-
-import config
+
+import ticketparser.config
 import urllib2, base64, re, time, datetime, sys, xmlrpclib, codecs, argparse
 
 class TicketParser:
@@ -13,9 +14,11 @@ class TicketParser:
             [components] 
             tracrpc.* = enabled 
         """
-        server = xmlrpclib.ServerProxy(config.web_uri)
-        ticket = server.ticket.get(config.web_ticket_num)
-        comments = server.ticket.changeLog(config.web_ticket_num)
+        if ticketparser.config.Config.fetch_from_web == False:
+            return []
+        server = xmlrpclib.ServerProxy(ticketparser.config.Config.web_uri)
+        ticket = server.ticket.get(ticketparser.config.Config.web_ticket_num)
+        comments = server.ticket.changeLog(ticketparser.config.Config.web_ticket_num)
         
         description = ticket[3]["description"]
         comments_content = ""
@@ -30,7 +33,7 @@ class TicketParser:
         get data from file_location specified in config.py (default data.dat)
         """
         try:
-            lines = codecs.open(config.file_location,"rb", encoding="utf-8").read().split("\n")
+            lines = codecs.open(ticketparser.config.Config.file_location,"rb", encoding="utf-8").read().split("\n")
             selected_lines = []
             for line in lines:
                 if line.startswith("===end_of_time_entries==="):
@@ -598,11 +601,10 @@ class MoneyParser:
                             (time_dt.weekday() < prevDayForWeek.weekday())):
                         
                         tags_exc = ""
+                        cms = "" # comment string
                         fs = 0
                         rs = 0
-                        f_flag = False
-                        r_flag= False
-                        cms = "" # comment string
+                        sums = 0 # sum SEK all tags together (verification)
                         # ostalo-redni (S)
                         o = 0
                         # ostalo -redni-futr-razv
@@ -617,6 +619,8 @@ class MoneyParser:
                                     if cur == u"\u20ac": # TODO reset € it's not processed further
                                         by_tag[k]["out"][cur]["value"] = 0
                                 if by_tag[k]["out"].has_key(u"S"):
+                                    # all tags together
+                                    sums += by_tag[k]["out"][u"S"]["value"]
                                     if k == u"#redni":
                                         # we don't add #redni and it's already noted in cms
                                         by_tag[k]["out"][u"S"]["value"] = 0 
@@ -633,7 +637,7 @@ class MoneyParser:
                                     
                                     o_redni_futr_razv += by_tag[k]["out"][u"S"]["value"]
                                     by_tag[k]["out"][u"S"]["value"] = 0
-                        tags_exc += "%.2f\t%.2f" % (fs, rs)
+                        tags_exc += "%.2f\t%.2f\t%.2f" % (sums, fs, rs)
                         
                         # excel string
                         excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
@@ -888,12 +892,12 @@ def common(args):
         
         # TODO - fetch if needed
         data = []
+        
         try:
             data = tp.get_data_from_web()
         except:
             print "NOT FETCHED FROM WEB BECAUSE NETWORK ISSUES"
         data += tp.get_data_from_file()
-        #data = tp.get_data_from_file()
         
         # get input (list of tags and string regex)
         tags = tp.find_tags(args.tags[0])
@@ -913,6 +917,7 @@ def common(args):
         num_of_days = 0
         current_day = None
         selected_entries = []
+        
         for time_entry in all_times:
             # add entry if it's in correct date range
             if time_entry["start_dt"] >= args.starting_day:
@@ -931,6 +936,7 @@ def common(args):
         
         # select records which match all tags AND regex
         selected = tp.selected_records(selected_entries,regex=regex,tags=tags, full_regex=False)
+        
         return selected, tp
     
 def time_entries(args):
@@ -944,6 +950,7 @@ def time_entries(args):
 def moneyparser(args):
         selected, tp = common(args)
         mp = MoneyParser()
+        
         if False == sys.stdout.isatty(): # pipe 
             print mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags).encode('utf-8')
         else: # stdout 
