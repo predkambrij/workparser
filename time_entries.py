@@ -507,6 +507,30 @@ class MoneyParser:
             by_tag[tag][direction][currency]["entries"].append(
                 {"desc":moneypart["description"], "amount":value, "tags":tag_words,
                  "time":time_dt.strftime("%d.%m")})
+    def updateExcelInfo(self, excel_string, by_tag, firstDayOfPrevWeek, prevDayForWeek):
+        twie = self.total_week_info_excel()
+        
+        tags_exc, o_redni_futr_razv, o, cms = self.calculate_tagsExc(by_tag)
+        
+        # headers for the first time
+        if excel_string == "":
+            excel_string += (
+                "from\tto\tbal\tout\tin\tbal\tout\tin"
+                +"\tall\tfutr\trazv\to-r-f-r\tost\tcomm\n")
+        
+        excel_string += ("%s\t%s\t%s\t"
+                         +"%s\t%.2f\t%.2f\t%s\n") % (
+            firstDayOfPrevWeek.strftime("%d.%m"),
+            prevDayForWeek.strftime("%d.%m"),
+            twie,
+            
+            tags_exc,
+            o_redni_futr_razv,
+            o,
+            cms[:-2],
+            )
+        return excel_string
+    
     def calculate_tagsExc(self, by_tag):
         tags_exc = ""
         cms = "" # comment string
@@ -517,13 +541,19 @@ class MoneyParser:
         o = 0
         # ostalo -redni-futr-razv
         o_redni_futr_razv = 0
-        
-        for k in sorted(by_tag.keys(), key=lambda x:(x == u"#redni" or x)):
+        #print by_tag
+        for k in sorted(by_tag.keys(), key=lambda x:(((by_tag[x].has_key("out") and
+                                                        by_tag[x]["out"].has_key(u"S") and
+                                                        by_tag[x]["out"][u"S"]["value"])
+                                                     ) or (by_tag[x].has_key("out") and
+                                                        by_tag[x]["out"].has_key(u"\u20ac") and
+                                                        by_tag[x]["out"][u"\u20ac"]["value"])
+                                                     ), reverse=True):
             if by_tag[k].has_key("out"):
                 for cur in sorted(by_tag[k]["out"].keys(),
                                   key=lambda x:(x == u"\u20ac" or x)):
                     if by_tag[k]["out"][cur]["value"] > 0.00001:
-                        cms += "%s:%.2f%s, " % (k, by_tag[k]["out"][cur]["value"], cur)
+                        cms += "%s:%.2f%s\t" % (k, by_tag[k]["out"][cur]["value"], cur)
                     if cur == u"\u20ac": # TODO reset € it's not processed further
                         by_tag[k]["out"][cur]["value"] = 0
                 if by_tag[k]["out"].has_key(u"S"):
@@ -584,6 +614,7 @@ class MoneyParser:
                   "months":{},
                   "weeks":{},
                   "days":{},
+                  "other":{}
             }
         
         # prepare for filtering
@@ -648,10 +679,8 @@ class MoneyParser:
                 
                 if show_by_tags:
                     self.write_to_class_for_total_balance(value, direction, currency)
-                # TODO check if we can change the order
-                self.update_bytag(by_tag, moneypart, tag_words, time_dt)
-                
-                if not show_by_tags:
+                    self.update_bytag(by_tag, moneypart, tag_words, time_dt)
+                else:
                     # entries are sorted by time so if day changes we will do a new entry
                     if day != time_dt.strftime("%d.%m.%Y"):
                         # make new entry for current day because of the moneyflow attribute
@@ -672,27 +701,22 @@ class MoneyParser:
                         firstDayOfPrevWeek = time_dt
                     
                     # difference 7 days or it's surely new week
+                    
                     if ((time_dt - firstDayOfPrevWeek) > datetime.timedelta(days=7) or
                             (time_dt.weekday() < prevDayForWeek.weekday())):
                         
-                        # excel string
-                        twie = self.total_week_info_excel()
-                        tags_exc, o_redni_futr_razv, o, cms = self.calculate_tagsExc(by_tag)
-                        excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (
-                            firstDayOfPrevWeek.strftime("%d.%m"),
-                            prevDayForWeek.strftime("%d.%m"),
-                            twie,
-                            tags_exc,
-                            o_redni_futr_razv,
-                            o,
-                            cms[:-2],
-                            )
+                        excel_string = self.updateExcelInfo(excel_string, by_tag,
+                                                    firstDayOfPrevWeek, prevDayForWeek)
+                        
                         # update week balance
                         ret_str = self.writeTotals(ret_str, r_list, ["w"],
                                         ws=firstDayOfPrevWeek.strftime("%d.%m.%Y"),
                                         we=prevDayForWeek.strftime("%d.%m.%Y"))
                         
                         firstDayOfPrevWeek = time_dt
+                    
+                    # update for tags shown in excel
+                    self.update_bytag(by_tag, moneypart, tag_words, time_dt)
                     
                     # keep track of last day for previous week
                     prevDayForWeek = time_dt
@@ -740,31 +764,28 @@ class MoneyParser:
             ret_str += ret_by_tag
             ret_str += self.total_info()
         else:
-            # excel string at the end
-            excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (firstDayOfPrevWeek.strftime("%d.%m"),
-                time_dt.strftime("%d.%m"),
-                self.total_week_info_excel(),
-                tags_exc,
-                o_redni_futr_razv,
-                o,
-                cms[:-2],
-                )
+            excel_string = self.updateExcelInfo(excel_string, by_tag,
+                                                    firstDayOfPrevWeek, prevDayForWeek)
                         
-            codecs.open("week_export.xsl","wb", encoding="utf-8").write(excel_string)
+                        
+            codecs.open("week_export.tsv","wb", encoding="utf-8").write(excel_string)
             # add total also at the end
             ret_str = self.writeTotals(ret_str, r_list, ["d","w","m","t"],
                                         ws=firstDayOfPrevWeek.strftime("%d.%m.%Y"),
-                                            we=time_dt.strftime("%d.%m.%Y"),
+                                            we=prevDayForWeek.strftime("%d.%m.%Y"),
                                         day=day,
                                         month=time_dt.strftime("%m.%Y"))
         
         if list_money_tags:
-            ret_str += "\nUsed tags (%d): \"%s\"" % (
+            taglist = "\nUsed tags (%d): \"%s\"" % (
                 len(self.all_used_tags),
                 " ".join(sorted(list(self.all_used_tags))))
+            ret_str += taglist
+            r_list["other"]["taglist"] = taglist
         
         
         return r_list #ret_str
+
     def writeTotals(self,ret_str, r_list, what, ws=None, we=None,
                     day=None, month=None):
         if "d" in what:
@@ -847,6 +868,9 @@ class MoneyParser:
             rstr += "\nTOTAL\n"
             rstr += self.printBalance(dicts["total"]["balance"], header="total")
             pass
+        if "taglist" in see:
+            rstr += "\nTag List"
+            rstr += dicts["other"]["taglist"]
         
         return rstr[:]
     
@@ -1094,7 +1118,7 @@ def time_entries(args):
 def moneyparser(args):
         selected, tp = common(args)
         mp = MoneyParser()
-        see = ["d", "w", "m", "t"]
+        see = ["d", "w", "m", "t", "taglist"]
         r_list = mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags)
         if False == sys.stdout.isatty(): # pipe 
             print mp.formatDicts(r_list, see=see).encode('utf-8')
