@@ -601,7 +601,7 @@ class MoneyParser:
         month=""
         newday=""
         prevDayForWeek=None
-        lastNotedDayForWeek=None
+        firstDayOfPrevWeek=None
         
         # excel export
         excel_string = ""
@@ -648,41 +648,41 @@ class MoneyParser:
                 
                 if show_by_tags:
                     self.write_to_class_for_total_balance(value, direction, currency)
-                
+                # TODO check if we can change the order
                 self.update_bytag(by_tag, moneypart, tag_words, time_dt)
                 
                 if not show_by_tags:
-                    # skip entries which hasn't money entry
-                    # TODO remove if (not moneypart.has_key("description")) or moneypart["description"] == u"": continue
-                    
-                    # entries are sorted by time so if day changed print it
+                    # entries are sorted by time so if day changes we will do a new entry
                     if day != time_dt.strftime("%d.%m.%Y"):
+                        # get data for previous day
                         r_balance, s_day = self.total_day_info()
+                        # make new entry for current day because of the moneyflow attribute
                         if not r_list["days"].has_key(time_dt.strftime("%d.%m.%Y")):
-                             r_list["days"][time_dt.strftime("%d.%m.%Y")]={"moneyflow":[],"balance":{}}
-                        # don't do that on first iteration
+                             r_list["days"][time_dt.strftime("%d.%m.%Y")]={"moneyflow":[]}
+                        # don't do that on the first iteration
                         if day != "":
-                            r_list["days"][day]["balance"] = r_balance
+                            # write total for previous day
                             ret_str += s_day
+                            r_list["days"][day]["balance"] = r_balance
+                            
                         newday = "\nDay "+time_dt.strftime("%d.%m")+":\n"
                         # update previous day variable
                         day = time_dt.strftime("%d.%m.%Y")
-                        
                     
                     # week entry
                     if prevDayForWeek == None:
                         prevDayForWeek = time_dt
-                        lastNotedDayForWeek = time_dt
+                        firstDayOfPrevWeek = time_dt
                     
                     # difference 7 days or it's surely new week
-                    if ((time_dt - lastNotedDayForWeek) > datetime.timedelta(days=7) or
+                    if ((time_dt - firstDayOfPrevWeek) > datetime.timedelta(days=7) or
                             (time_dt.weekday() < prevDayForWeek.weekday())):
                         
                         # excel string
                         tags_exc, o_redni_futr_razv, o, cms = self.calculate_tagsExc(by_tag)
                         excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (
-                            lastNotedDayForWeek.strftime("%d.%m"),
-                            time_dt.strftime("%d.%m"),
+                            firstDayOfPrevWeek.strftime("%d.%m"),
+                            prevDayForWeek.strftime("%d.%m"),
                             self.total_week_info_excel(),
                             tags_exc,
                             o_redni_futr_razv,
@@ -692,10 +692,10 @@ class MoneyParser:
                         r_balance, s_week = self.total_week_info()
                         ret_str += s_week
                         
-                        r_list["weeks"][tuple([lastNotedDayForWeek.strftime("%d.%m.%Y"),
-                                           time_dt.strftime("%d.%m.%Y")
+                        r_list["weeks"][tuple([firstDayOfPrevWeek.strftime("%d.%m.%Y"),
+                                           prevDayForWeek.strftime("%d.%m.%Y")
                                            ])] = {"balance":r_balance}
-                        lastNotedDayForWeek = time_dt
+                        firstDayOfPrevWeek = time_dt
                         
                     
                     prevDayForWeek = time_dt
@@ -744,7 +744,7 @@ class MoneyParser:
             ret_str += self.total_info()
         else:
             # excel string at the end
-            excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (lastNotedDayForWeek.strftime("%d.%m"),
+            excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (firstDayOfPrevWeek.strftime("%d.%m"),
                 time_dt.strftime("%d.%m"),
                 self.total_week_info_excel(),
                 tags_exc,
@@ -760,7 +760,7 @@ class MoneyParser:
             r_list["days"][day]={"balance":r_balance, "moneyflow":["TODO"]}
             r_balance, s_week = self.total_week_info()
             ret_str += s_week
-            r_list["weeks"][tuple([lastNotedDayForWeek.strftime("%d.%m.%Y"),
+            r_list["weeks"][tuple([firstDayOfPrevWeek.strftime("%d.%m.%Y"),
                            time_dt.strftime("%d.%m.%Y")
                            ])] = {"balance":r_balance}
             r_balance, s_month = self.total_month_info()
@@ -825,7 +825,7 @@ class MoneyParser:
             rstr += "\nWEEKS"
             weeks = [ x for x in sorted(dicts["weeks"].keys(), key=lambda x:x[0].split(".")[::-1])]
             for week in weeks:
-                rstr += "\nWeek %s-%s(excl)\n" % (week[0][:-5], week[1][:-5])
+                rstr += "\nWeek %s-%s\n" % (week[0][:-5], week[1][:-5])
                 # week total
                 rstr += self.printBalance(dicts["weeks"][week]["balance"], header="week")
         
