@@ -516,7 +516,7 @@ class MoneyParser:
         if excel_string == "":
             excel_string += (
                 "from\tto\tbal\tout\tin\tbal\tout\tin"
-                +"\tall\tfutr\trazv\to-r-f-r\tost\tcomm\n")
+                +"\tallS\tallE\tfutr\trazv\to-r-f-r\tost\tcomm\n")
         
         excel_string += ("%s\t%s\t%s\t"
                          +"%s\t%.2f\t%.2f\t%s\n") % (
@@ -527,7 +527,7 @@ class MoneyParser:
             tags_exc,
             o_redni_futr_razv,
             o,
-            cms[:-2],
+            cms[:-1],
             )
         return excel_string
     
@@ -537,47 +537,63 @@ class MoneyParser:
         fs = 0
         rs = 0
         sums = 0 # sum SEK all tags together (verification)
+        sume = 0 # sum € all tags together (verification)
         # ostalo-redni (S)
         o = 0
         # ostalo -redni-futr-razv
         o_redni_futr_razv = 0
-        #print by_tag
-        for k in sorted(by_tag.keys(), key=lambda x:(((by_tag[x].has_key("out") and
-                                                        by_tag[x]["out"].has_key(u"S") and
-                                                        by_tag[x]["out"][u"S"]["value"])
-                                                     ) or (by_tag[x].has_key("out") and
-                                                        by_tag[x]["out"].has_key(u"\u20ac") and
-                                                        by_tag[x]["out"][u"\u20ac"]["value"])
-                                                     ), reverse=True):
-            if by_tag[k].has_key("out"):
-                for cur in sorted(by_tag[k]["out"].keys(),
-                                  key=lambda x:(x == u"\u20ac" or x)):
+        #get all currencies
+        curs = set([])
+        for tag in by_tag.keys():
+            curs |= set(by_tag[tag]["out"].keys())
+        # go over currencies (sorted for comment)
+        for cur in sorted(curs, key=lambda x:[u"S",u"\u20ac"].index(x)):
+            #go over tags (k=tag)
+            for k in sorted(by_tag.keys(), # sort by value
+                            key=lambda x:(
+                                        by_tag[x].has_key("out") and
+                                        by_tag[x]["out"].has_key(cur) and
+                                        by_tag[x]["out"][cur]["value"]
+                                                        ), reverse=True):
+                # just expenses
+                if by_tag[k].has_key("out") and by_tag[k]["out"].has_key(cur):
+                    # comment (all tags), sort by currency
                     if by_tag[k]["out"][cur]["value"] > 0.00001:
-                        cms += "%s:%.2f%s\t" % (k, by_tag[k]["out"][cur]["value"], cur)
-                    if cur == u"\u20ac": # TODO reset € it's not processed further
+                        if cur == u"\u20ac":
+                            cms += "%s:%.1f%s\t" % (k, by_tag[k]["out"][cur]["value"], cur)
+                        else:
+                            cms += "%s:%.0f%s\t" % (k, by_tag[k]["out"][cur]["value"], cur)
+                    if cur == u"\u20ac": # reset € it's not processed further
+                        sume += by_tag[k]["out"][cur]["value"]
                         by_tag[k]["out"][cur]["value"] = 0
-                if by_tag[k]["out"].has_key(u"S"):
-                    # all tags together
-                    sums += by_tag[k]["out"][u"S"]["value"]
-                    if k == u"#redni":
-                        # we don't add #redni and it's already noted in cms
-                        by_tag[k]["out"][u"S"]["value"] = 0 
-                        continue
-                    o += by_tag[k]["out"][u"S"]["value"]
-                    
-                    if k == u"#futr":
-                        fs += by_tag[u"#futr"]["out"][u"S"]["value"]
-                        by_tag[u"#futr"]["out"][u"S"]["value"] = 0
-                    
-                    if k == u"#razv":
-                        rs += by_tag[u"#razv"]["out"][u"S"]["value"]
-                        by_tag[u"#razv"]["out"][u"S"]["value"] = 0
-                    
-                    o_redni_futr_razv += by_tag[k]["out"][u"S"]["value"]
-                    by_tag[k]["out"][u"S"]["value"] = 0
-        tags_exc += "%.2f\t%.2f\t%.2f" % (sums, fs, rs)
+                    # group SEK expenses by hashtags
+                    if by_tag[k]["out"].has_key(u"S"):
+                        # all tags together (verification)
+                        sums += by_tag[k]["out"][u"S"]["value"]
+                        # by common tags
+                        if k == u"#redni":
+                            # we don't add #redni and it's already noted in cms
+                            by_tag[k]["out"][u"S"]["value"] = 0 
+                            continue
+                        # other (all-redni)
+                        o += by_tag[k]["out"][u"S"]["value"]
+                        # futr column
+                        if k == u"#futr":
+                            fs += by_tag[u"#futr"]["out"][u"S"]["value"]
+                            by_tag[u"#futr"]["out"][u"S"]["value"] = 0
+                        # razv column
+                        if k == u"#razv":
+                            rs += by_tag[u"#razv"]["out"][u"S"]["value"]
+                            by_tag[u"#razv"]["out"][u"S"]["value"] = 0
+                        # other - redni - futr - razv
+                        o_redni_futr_razv += by_tag[k]["out"][u"S"]["value"]
+                        # reset value for next week
+                        by_tag[k]["out"][u"S"]["value"] = 0
+        tags_exc += "%.2f\t%.2f\t%.2f\t%.2f" % (sums, sume, fs, rs)
         return tags_exc, o_redni_futr_razv, o, cms
-    
+    def formatExcel(self,rows):
+        r_str = ""
+        return r_str
     def setDefaultsIfNeeded(self, moneypart):
         try:
             if len(moneypart["description"]) == 0:
