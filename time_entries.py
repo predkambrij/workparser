@@ -654,16 +654,13 @@ class MoneyParser:
                 if not show_by_tags:
                     # entries are sorted by time so if day changes we will do a new entry
                     if day != time_dt.strftime("%d.%m.%Y"):
-                        # get data for previous day
-                        r_balance, s_day = self.total_day_info()
                         # make new entry for current day because of the moneyflow attribute
                         if not r_list["days"].has_key(time_dt.strftime("%d.%m.%Y")):
                              r_list["days"][time_dt.strftime("%d.%m.%Y")]={"moneyflow":[]}
                         # don't do that on the first iteration
                         if day != "":
                             # write total for previous day
-                            ret_str += s_day
-                            r_list["days"][day]["balance"] = r_balance
+                            ret_str = self.writeTotals(ret_str, r_list, ["d"], day=day)
                             
                         newday = "\nDay "+time_dt.strftime("%d.%m")+":\n"
                         # update previous day variable
@@ -679,33 +676,32 @@ class MoneyParser:
                             (time_dt.weekday() < prevDayForWeek.weekday())):
                         
                         # excel string
+                        twie = self.total_week_info_excel()
                         tags_exc, o_redni_futr_razv, o, cms = self.calculate_tagsExc(by_tag)
                         excel_string += "%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n" % (
                             firstDayOfPrevWeek.strftime("%d.%m"),
                             prevDayForWeek.strftime("%d.%m"),
-                            self.total_week_info_excel(),
+                            twie,
                             tags_exc,
                             o_redni_futr_razv,
                             o,
                             cms[:-2],
                             )
-                        r_balance, s_week = self.total_week_info()
-                        ret_str += s_week
+                        # update week balance
+                        ret_str = self.writeTotals(ret_str, r_list, ["w"],
+                                        ws=firstDayOfPrevWeek.strftime("%d.%m.%Y"),
+                                        we=prevDayForWeek.strftime("%d.%m.%Y"))
                         
-                        r_list["weeks"][tuple([firstDayOfPrevWeek.strftime("%d.%m.%Y"),
-                                           prevDayForWeek.strftime("%d.%m.%Y")
-                                           ])] = {"balance":r_balance}
                         firstDayOfPrevWeek = time_dt
-                        
                     
+                    # keep track of last day for previous week
                     prevDayForWeek = time_dt
                     
+                    # month entry
                     if month != time_dt.strftime("%m.%Y"):
                         if month != "":
                             # don't do that on first iteration
-                            r_balance, s_month = self.total_month_info()
-                            ret_str += s_month
-                            r_list["months"][month]={"balance":r_balance}
+                            ret_str = self.writeTotals(ret_str, r_list, ["m"], month=month)
                             
                         # update previous month variable
                         month = time_dt.strftime("%m.%Y")
@@ -722,6 +718,7 @@ class MoneyParser:
                     r_list["days"][time_dt.strftime("%d.%m.%Y")]["moneyflow"].append(moneyflow)
                     ret_str += moneyflow + "\n"
         
+        # at the end of for loops add remaining total values
         if show_by_tags:
             ret_by_tag = ""
             for tag in sorted(by_tag.keys(), key=lambda tag_x:sum([
@@ -755,21 +752,11 @@ class MoneyParser:
                         
             codecs.open("week_export.xsl","wb", encoding="utf-8").write(excel_string)
             # add total also at the end
-            r_balance, s_day = self.total_day_info()
-            ret_str += s_day
-            r_list["days"][day]={"balance":r_balance, "moneyflow":["TODO"]}
-            r_balance, s_week = self.total_week_info()
-            ret_str += s_week
-            r_list["weeks"][tuple([firstDayOfPrevWeek.strftime("%d.%m.%Y"),
-                           time_dt.strftime("%d.%m.%Y")
-                           ])] = {"balance":r_balance}
-            r_balance, s_month = self.total_month_info()
-            ret_str += s_month
-            r_list["months"][time_dt.strftime("%m.%Y")]={"balance":r_balance}
-            r_balance, r_str = self.total_info()
-            ret_str += r_str
-            
-            r_list["total"]["balance"] = r_balance
+            ret_str = self.writeTotals(ret_str, r_list, ["d","w","m","t"],
+                                        ws=firstDayOfPrevWeek.strftime("%d.%m.%Y"),
+                                            we=time_dt.strftime("%d.%m.%Y"),
+                                        day=day,
+                                        month=time_dt.strftime("%m.%Y"))
         
         if list_money_tags:
             ret_str += "\nUsed tags (%d): \"%s\"" % (
@@ -778,6 +765,26 @@ class MoneyParser:
         
         
         return r_list #ret_str
+    def writeTotals(self,ret_str, r_list, what, ws=None, we=None,
+                    day=None, month=None):
+        if "d" in what:
+            r_balance, s_day = self.total_day_info()
+            ret_str += s_day
+            r_list["days"][day]["balance"] = r_balance
+        if "w" in what:
+            r_balance, s_week = self.total_week_info()
+            ret_str += s_week
+            r_list["weeks"][tuple([ws,we])] = {"balance":r_balance}
+        if "m" in what:
+            r_balance, s_month = self.total_month_info()
+            ret_str += s_month
+            r_list["months"][month]={"balance":r_balance}
+        if "t" in what:
+            r_balance, r_str = self.total_info()
+            ret_str += r_str
+            r_list["total"]["balance"] = r_balance
+        
+        return ret_str
     def formatDicts(self, dicts, see):
         # example of structure for return which will be formated to string
         #r_list = {
