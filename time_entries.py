@@ -404,26 +404,30 @@ class MoneyParser:
     
     def total_day_info(self):
         ret_str = ""
+        r_balance = {}
         currences = list(set(self.day_income_total.keys()+self.day_outcome_total.keys()))
         for currency in currences:
             currency_balance, income, outcome  = self.calculate_day_balance(currency)
+            r_balance[currency] = tuple([currency_balance, income, outcome])
             ret_str += "Total day balance %.2f %s | out %.2f %s | in %.2f %s\n" % (
                             currency_balance, currency, outcome, currency, income, currency)
         self.day_income_total = {}
         self.day_outcome_total = {}
-        return ret_str
+        return r_balance, ret_str
     
     def total_week_info(self):
         ret_str = ""
+        r_balance = {}
         currences = list(set(self.week_income_total.keys()
                              +self.week_outcome_total.keys()))
         for currency in currences:
             currency_balance, income, outcome  = self.calculate_week_balance(currency)
+            r_balance[currency] = tuple([currency_balance, income, outcome])
             ret_str += "Total week balance %.2f %s | out %.2f %s | in %.2f %s\n" % (
                             currency_balance, currency, outcome, currency, income, currency)
         self.week_income_total = {}
         self.week_outcome_total = {}
-        return ret_str
+        return r_balance, ret_str
     def total_week_info_excel(self):
         """
         same as total_week_info but output for excel and it doesn't reset self.week_(in/out)come_total
@@ -447,23 +451,27 @@ class MoneyParser:
     
     def total_month_info(self):
         ret_str = ""
+        r_balance = {}
         currences = list(set(self.month_income_total.keys()+self.month_outcome_total.keys()))
         for currency in currences:
             currency_balance, income, outcome  = self.calculate_month_balance(currency)
+            r_balance[currency] = tuple([currency_balance, income, outcome])
             ret_str += "Total month balance %.2f %s | out %.2f %s | in %.2f %s\n" % (
                             currency_balance, currency, outcome, currency, income, currency)
         self.month_income_total = {}
         self.month_outcome_total = {}
-        return ret_str
+        return r_balance, ret_str
     
     def total_info(self):
         ret_str = ""
+        r_balance = {}
         currences = list(set(self.income_total.keys()+self.outcome_total.keys()))
         for currency in currences:
             currency_balance, income, outcome = self.calculate_total_balance(currency)
+            r_balance[currency] = tuple([currency_balance, income, outcome])
             ret_str += "Total balance %.2f %s | out %.2f %s | in %.2f %s\n" % (
                     currency_balance, currency, outcome, currency, income, currency)
-        return ret_str
+        return r_balance, ret_str
     
     def write_to_class_for_total_balance(self, value, direction, currency):
         if value != "TODO": 
@@ -539,6 +547,19 @@ class MoneyParser:
                     by_tag[k]["out"][u"S"]["value"] = 0
         tags_exc += "%.2f\t%.2f\t%.2f" % (sums, fs, rs)
         return tags_exc, o_redni_futr_razv, o, cms
+    
+    def setDefaultsIfNeeded(self, moneypart):
+        try:
+            if len(moneypart["description"]) == 0:
+                moneypart["description"] = u"no description"
+        except:
+            moneypart["description"] = u"no description" 
+        try:
+            if len(moneypart["tags"])==0:
+                moneypart["tags"] = [u'#notag']
+        except:
+            moneypart["tags"] = [u'#notag']
+    
     def print_money_entries(self, all_times, money_tags, list_money_tags, show_by_tags):
         """
         :parm:all_times - output of time_calculator in relevant time interval
@@ -555,17 +576,27 @@ class MoneyParser:
         :parm:show_by_tags -s flag
         look at parseArgsMoneyParser() for description
         """
-        # end string
-        ret_str = ""
+        # result saving variables
+        by_tag = {}
+        r_list = {
+                  "total": {"balance":{}
+                            },
+                  "months":{},
+                  "weeks":{},
+                  "days":{},
+            }
+        
+        # prepare for filtering
         if money_tags != "NoTags":
             money_tags_list = money_tags.split()
         else:
             money_tags_list = None
         
+        # getting rid of
+        ret_str = ""
         
-        by_tag = {}
         
-        # previous day/month
+        # previous day/week/month
         day=""
         month=""
         newday=""
@@ -579,20 +610,17 @@ class MoneyParser:
         max_i = len(all_times)-1
         for time_entry in all_times:
             str_time = datetime.datetime.fromtimestamp(time_entry["start_sec"]).strftime("%d.%m")
+            time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
             moneyparts = time_entry["money_part"]
             
+            # go over moneyparts
             for moneypart in self.split_moneywords(moneyparts, str_time):
                 # if description or tags aren't given - give them special name
-                try:
-                    if len(moneypart["description"]) == 0:
-                        moneypart["description"] = u"no description"
-                except:
-                    moneypart["description"] = u"no description" 
-                try:
-                    if len(moneypart["tags"])==0:
-                        moneypart["tags"] = [u'#notag']
-                except:
-                    moneypart["tags"] = [u'#notag']
+                self.setDefaultsIfNeeded(moneypart)
+                
+                currency = moneypart["amount"]["currency"]
+                value = moneypart["amount"]["value"]
+                direction = moneypart["amount"]["direction"]
                 
                 # process the tags
                 tag_words = moneypart["tags"]
@@ -602,7 +630,7 @@ class MoneyParser:
                 # for -l flag
                 self.update_list_tags(tag_words)
                 
-                # include just lines which has all required hastags (if flag isn't present ignore that condition)
+                # filter: include just lines which has all required hastags (if flag isn't present ignore that condition)
                 # so skip line if doesn't meet conditions (continoue)
                 if money_tags_list == None or money_tags_list != []:
                     # if we want lines which doesn't have any tag
@@ -618,32 +646,28 @@ class MoneyParser:
                         if cont:
                             continue
                 
-                # which processing we want (by tags or by time flow)
-                # there was only if by tags, let's calculate it anyway because of excel export
-                # rewrite for easier human readability
-                currency = moneypart["amount"]["currency"]
-                value = moneypart["amount"]["value"]
-                direction = moneypart["amount"]["direction"]
-                
                 if show_by_tags:
                     self.write_to_class_for_total_balance(value, direction, currency)
                 
-                time_dt = datetime.datetime.fromtimestamp(time_entry["start_sec"])
                 self.update_bytag(by_tag, moneypart, tag_words, time_dt)
                 
-                ### not by tags
                 if not show_by_tags:
                     # skip entries which hasn't money entry
-                    if (not moneypart.has_key("description")) or moneypart["description"] == u"": continue
-                    # inputs: 
+                    # TODO remove if (not moneypart.has_key("description")) or moneypart["description"] == u"": continue
+                    
                     # entries are sorted by time so if day changed print it
-                    if day != time_dt.strftime("%d"):
+                    if day != time_dt.strftime("%d.%m.%Y"):
+                        r_balance, s_day = self.total_day_info()
+                        if not r_list["days"].has_key(time_dt.strftime("%d.%m.%Y")):
+                             r_list["days"][time_dt.strftime("%d.%m.%Y")]={"moneyflow":[],"balance":{}}
                         # don't do that on first iteration
                         if day != "":
-                            ret_str += self.total_day_info()
+                            r_list["days"][day]["balance"] = r_balance
+                            ret_str += s_day
                         newday = "\nDay "+time_dt.strftime("%d.%m")+":\n"
                         # update previous day variable
-                        day = time_dt.strftime("%d")
+                        day = time_dt.strftime("%d.%m.%Y")
+                        
                     
                     # week entry
                     if prevDayForWeek == None:
@@ -665,18 +689,26 @@ class MoneyParser:
                             o,
                             cms[:-2],
                             )
+                        r_balance, s_week = self.total_week_info()
+                        ret_str += s_week
                         
+                        r_list["weeks"][tuple([lastNotedDayForWeek.strftime("%d.%m.%Y"),
+                                           time_dt.strftime("%d.%m.%Y")
+                                           ])] = {"balance":r_balance}
                         lastNotedDayForWeek = time_dt
-                        ret_str += self.total_week_info()
                         
+                    
                     prevDayForWeek = time_dt
                     
-                    if month != time_dt.strftime("%m"):
+                    if month != time_dt.strftime("%m.%Y"):
                         if month != "":
                             # don't do that on first iteration
-                            ret_str += self.total_month_info()
+                            r_balance, s_month = self.total_month_info()
+                            ret_str += s_month
+                            r_list["months"][month]={"balance":r_balance}
+                            
                         # update previous month variable
-                        month = time_dt.strftime("%m")
+                        month = time_dt.strftime("%m.%Y")
                     
                     # print new day info after total month
                     if newday != "":
@@ -685,8 +717,10 @@ class MoneyParser:
                     
                     # nicely formated money -> description pairs 
                     # also count money to class attributes
+                    moneyflow = self.parse_moneywords(moneypart)
                     
-                    ret_str += self.parse_moneywords(moneypart) + "\n"
+                    r_list["days"][time_dt.strftime("%d.%m.%Y")]["moneyflow"].append(moneyflow)
+                    ret_str += moneyflow + "\n"
         
         if show_by_tags:
             ret_by_tag = ""
@@ -721,16 +755,104 @@ class MoneyParser:
                         
             codecs.open("week_export.xsl","wb", encoding="utf-8").write(excel_string)
             # add total also at the end
-            ret_str += self.total_day_info()
-            ret_str += self.total_week_info()
-            ret_str += self.total_month_info()
-            ret_str += self.total_info()
+            r_balance, s_day = self.total_day_info()
+            ret_str += s_day
+            r_list["days"][day]={"balance":r_balance, "moneyflow":["TODO"]}
+            r_balance, s_week = self.total_week_info()
+            ret_str += s_week
+            r_list["weeks"][tuple([lastNotedDayForWeek.strftime("%d.%m.%Y"),
+                           time_dt.strftime("%d.%m.%Y")
+                           ])] = {"balance":r_balance}
+            r_balance, s_month = self.total_month_info()
+            ret_str += s_month
+            r_list["months"][time_dt.strftime("%m.%Y")]={"balance":r_balance}
+            r_balance, r_str = self.total_info()
+            ret_str += r_str
+            
+            r_list["total"]["balance"] = r_balance
         
         if list_money_tags:
             ret_str += "\nUsed tags (%d): \"%s\"" % (
                 len(self.all_used_tags),
                 " ".join(sorted(list(self.all_used_tags))))
-        return ret_str
+        
+        
+        return r_list #ret_str
+    def formatDicts(self, dicts, see):
+        # example of structure for return which will be formated to string
+        #r_list = {
+        #          "total": {"balance":{}
+        #          },
+        #          "months":{
+        #                    "12.2014":{"balance":{}
+        #                               }
+        #          },
+        #          "weeks":{
+        #                   ("12.2014", "19.2014"):{"balance":{
+        #                                                      "€":(6.0,7.0,1.0),
+        #                                                      "S":(6.0,7.0,1.0),
+        #                                                      }
+        #                                           }
+        #          },
+        #          "days":{
+        #                  "1.12.2014":{"balance":{
+        #                                          "€":("v_bal","v_out","v_in"),
+        #                                          "S":("v_bal","v_out","v_in"),
+        #                                          }
+        #                               }
+        #                  },
+        #          }
+        #    }
+        # print repr(r_list)
+        rstr = ""
+        if "d" in see:
+            rstr += "DAYS"
+            days = [ x for x in sorted(dicts["days"].keys(), key=lambda x:x.split(".")[::-1])]
+            for day in days:
+                if (len(dicts["days"][day]["balance"].keys()) == 0
+                    and len(dicts["days"][day]["moneyflow"]) == 0):
+                    continue
+                
+                rstr += "\nDay %s\n" % day[:-5]
+                
+                # moneyflow
+                for mf in dicts["days"][day]["moneyflow"]:
+                    rstr += mf+"\n"
+                # day total
+                rstr += self.printBalance(dicts["days"][day]["balance"], header="day")
+        
+        if "w" in see:
+            rstr += "\nWEEKS"
+            weeks = [ x for x in sorted(dicts["weeks"].keys(), key=lambda x:x[0].split(".")[::-1])]
+            for week in weeks:
+                rstr += "\nWeek %s-%s(excl)\n" % (week[0][:-5], week[1][:-5])
+                # week total
+                rstr += self.printBalance(dicts["weeks"][week]["balance"], header="week")
+        
+        if "m" in see:
+            rstr += "\nMONTHS"
+            months = [ x for x in sorted(dicts["months"].keys(), key=lambda x:x.split(".")[::-1])]
+            for month in months:
+                rstr += "\nMonth %s\n" % month[:-5]
+                rstr += self.printBalance(dicts["months"][month]["balance"], header="month")
+        
+        if "t" in see:
+            rstr += "\nTOTAL\n"
+            rstr += self.printBalance(dicts["total"]["balance"], header="total")
+            pass
+        
+        return rstr[:]
+    
+    def printBalance(self,balance, header):
+        rstr=""
+        for cur in sorted(balance.keys(),key=lambda x:(x == u"\u20ac" or x)):# €, S, ..
+            rstr += "Total %s balance %.2f %s | out %.2f %s | in %.2f %s\n" % (
+                    header,
+                    balance[cur][0], cur,
+                    balance[cur][2], cur,
+                    balance[cur][1], cur,
+                    )
+        return rstr
 
 class ParseArguments:
     def checkNumberOfdays(self, value):
@@ -965,11 +1087,12 @@ def time_entries(args):
 def moneyparser(args):
         selected, tp = common(args)
         mp = MoneyParser()
-        
+        see = ["d", "w", "m", "t"]
+        r_list = mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags)
         if False == sys.stdout.isatty(): # pipe 
-            print mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags).encode('utf-8')
+            print mp.formatDicts(r_list, see=see).encode('utf-8')
         else: # stdout 
-            print mp.print_money_entries(selected, args.money_tags, args.list_money_tags, args.show_by_tags)
+            print mp.formatDicts(r_list, see=see)
         return
 
 if __name__ == "__main__":
