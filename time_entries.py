@@ -19,14 +19,20 @@ class TicketParser:
         server = xmlrpclib.ServerProxy(ticketparser.config.Config.web_uri)
         ticket = server.ticket.get(ticketparser.config.Config.web_ticket_num)
         comments = server.ticket.changeLog(ticketparser.config.Config.web_ticket_num)
+        comments1 = server.ticket.changeLog(ticketparser.config.Config.web_ticket_num1)
         
         description = ticket[3]["description"]
         comments_content = ""
         for comment in comments:
             if comment[2] == "comment":
                 comments_content += comment[4] + "\n"
+
+        comments_content1 = ""
+        for comment in comments1:
+            if comment[2] == "comment":
+                comments_content1 += comment[4] + "\n"
         
-        return (unicode(description + "\n" + comments_content)).split("\n")
+        return (unicode(description + "\n" + comments_content + "\n" + comments_content1)).split("\n")
         
     def get_data_from_file(self):
         """
@@ -532,6 +538,9 @@ class MoneyParser:
         return excel_string
     
     def calculate_tagsExc(self, by_tag):
+        """
+        TODO redni, etc beri s configa, da ne bo hardcodan
+        """
         tags_exc = ""
         cms = "" # comment string
         fs = 0
@@ -886,7 +895,8 @@ class MoneyParser:
             pass
         if "taglist" in see:
             rstr += "\nTag List"
-            rstr += dicts["other"]["taglist"]
+            if dicts["other"].has_key("taglist"): # TODO that doesn't crash huh...
+                rstr += dicts["other"]["taglist"]
         
         return rstr[:]
     

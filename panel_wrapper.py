@@ -152,10 +152,10 @@ class PanelFormat:
         sum_running_duration = "%.0f" % (self.sum_running_slices())
         is_it_working = "%s" % datetime.datetime.now().strftime("%H:%M")
         # format everything together (for Generic Monitor)
-        return ("<txt>%.1f_%.1f hours (%s-%s m) %s LOG?</txt>"
+        return ("<txt>%.1f_%.1f hours (%s-%s m)</txt>" # LOG? stej cas od zadnjega updata - kok casa delas trenuten task
                 +"<tool>%.1f_%.1f week hours // %.1f_%.1f mon-fri hours</tool>") % (
                             self.day_total,self.day_total_b, sum_running_duration,sum_break_duration,
-                            is_it_working,
+                            # is_it_working,
                             self.total, self.total_b,self.total_w, self.total_b_w)
 if __name__ == "__main__":
     P = PanelFormat()
