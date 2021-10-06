@@ -13,17 +13,7 @@ import urllib.request
 import ticketparser.config
 import os
 import sys
-sys.path.insert(
-    0, "/home/loj/doing1/projs/ikservis/tachodownloader/repos/workparser")
-
-
-# class FakeConfig:
-#    fetch_from_web=False
-#    file_location=os.path.dirname(__file__)+"/inp.dat"
-#    pass
-#
-#mock.patch('ticketparser.config.Config', FakeConfig)
-
+sys.path.insert(0, os.path.dirname(__file__)+"/workparser")
 
 class TicketParser:
     def get_data_from_web(self):
@@ -81,7 +71,7 @@ class TicketParser:
         """
         days = []
         skipped_days = []
-        year = "1900"
+        year = str(datetime.datetime.now().year)
 
         for line in data:
             stripped_line = line.strip()
@@ -92,17 +82,23 @@ class TicketParser:
 
             if re.match("^year:[0-9]{4}$", stripped_line):
                 year = stripped_line.split(":")[1]
-            elif re.match("^[0-9]{1,2}.[0-9]{1,2}$", stripped_line):
+            elif re.match("^[# ]*[0-9]{1,2}.[0-9]{1,2}.[0-9]{4}$", stripped_line):
                 # add new day
                 # append tuple as example ('30.10', '1900', [ ... day entries ... ])
-                days.append(tuple([stripped_line, year, []]))
-            elif re.match("^[0-9]{1,2}:[0-9]{2}[ ]*-[ ]*[0-9]{1,2}:[0-9]{2}[ ]*=[ ]*.*$", stripped_line):
+                mch = re.search('[# ]*([0-9]{1,2}.[0-9]{1,2}).([0-9]{4})$', stripped_line)
+                days.append(tuple([mch.group(1), str(mch.group(2)), []]))
+            elif re.match("^[# ]*[0-9]{1,2}.[0-9]{1,2}$", stripped_line):
+                # add new day
+                # append tuple as example ('30.10', '1900', [ ... day entries ... ])
+                day_month = re.search('[# ]*([0-9]{1,2}.[0-9]{1,2})$', stripped_line).group(1)
+                days.append(tuple([day_month, year, []]))
+            elif re.match("^[0-9]{1,2}:[0-9]{2}[ ]*-[ ]*[0-9]{1,2}:[0-9]{2}[ ]*.*$", stripped_line):
                 # add new day entry
                 try:
                     days[-1][2].append(stripped_line)
                 except:
                     skipped_days.append(stripped_line)
-            elif re.match("^[0-9]{1,2}:[0-9]{2}[ ]*-[ ]*=[ ]*.*$", stripped_line):
+            elif re.match("^[0-9]{1,2}:[0-9]{2}[ ]*-[ ]*.*$", stripped_line):
                 # add new day entry (unfinished entry)
                 try:
                     days[-1][2].append(stripped_line)
@@ -110,8 +106,8 @@ class TicketParser:
                     skipped_days.append(stripped_line)
             else:
                 # unparsable line
-                skipped_days.append(
-                    days[-1][0]+"."+days[-1][1]+" :: "+stripped_line)
+                #skipped_days.append(days[-1][0]+"."+days[-1][1]+" :: "+stripped_line)
+                skipped_days.append(stripped_line)
         return days, skipped_days
 
     def mock_date(self, date, year, start, end, ret=""):
@@ -124,7 +120,15 @@ class TicketParser:
         ndays = []
         for date, year, records in days:
             for record in records:
-                start_end, comment = record.split("=", 1)
+                if re.match("^[0-9]{1,2}:[0-9]{2}[ ]*-[ ]*[0-9]{1,2}:[0-9]{2}[ ]*.*$", record):
+                    mch = re.search("^([0-9]{1,2}:[0-9]{2}[ ]*-[ ]*[0-9]{1,2}:[0-9]{2}[ ]*)(.*)$", record)
+                    pass
+                elif re.match("^[0-9]{1,2}:[0-9]{2}[ ]*-[ ]*.*$", record):
+                    mch = re.search("^([0-9]{1,2}:[0-9]{2}[ ]*-[ ]*)(.*)$", record)
+                    pass
+
+                #start_end, comment = record.split("=", 1)
+                start_end, comment = (mch.group(1), mch.group(2))
                 start = start_end.split("-")[0].strip()
                 end = start_end.split("-")[1].strip()
                 # comment structure:
@@ -149,8 +153,7 @@ class TicketParser:
                 comment, money_part, real_comment = comment.strip(
                 ), money_part.strip(), real_comment.strip()
 
-                start_sec = int(time.mktime(time.strptime(
-                    date+"."+year+" "+start, "%d.%m.%Y %H:%M")))
+                start_sec = int(time.mktime(time.strptime(date+"."+year+" "+start, "%d.%m.%Y %H:%M")))
                 if str(end).strip() == "":
                     # unfinished entry
                     end_sec = start_sec+60
@@ -169,11 +172,11 @@ class TicketParser:
         if sec < 60:
             return str(sec)+" s"
         elif sec < 3600:
-            return str(sec/60)+"m"
+            return ("%.2f" % (sec/60))+"m"
         elif sec < 86400:
-            return str(sec/60/60)+"h " + str((sec/60) % 60)+"m"
+            return ("%.2f" % (sec/60/60))+"h " + ("%.2f" % ((sec/60) % 60))+"m"
         else:
-            return str(sec/60/60/24)+"d "+str((sec/60/60) % 24)+"h " + str((sec/60) % 60)+"m"+"==" + str(sec/60/60)+"h " + str((sec/60) % 60)+"m"
+            return ("%.2f" % (sec/60/60/24))+"d "+("%.2f" % ((sec/60/60) % 24))+"h " + ("%.2f" % ((sec/60) % 60))+"m"+" == " + ("%.2f" % (sec/60/60))+"h " + ("%.2f" % ((sec/60) % 60))+"m"
 
     def find_tags(self, comment):
         return [x for x in comment.split() if re.match("^#[a-zA-Z]+$", x)]
@@ -1191,7 +1194,8 @@ def common(args):
     # structured data
     time_pairs, skipped = tp.parser(data)
     if len("\n".join(skipped).strip()) != 0:
-        raise ValueError("SKIPPED LINES: "+"\n".join(skipped))
+        #raise ValueError("SKIPPED LINES: "+"\n".join(skipped))
+        print ("SKIPPED LINES: "+"\n".join(skipped)+"\n"+"\n")
 
     # even more structured data
     all_times = tp.time_calculator(time_pairs)
@@ -1200,6 +1204,7 @@ def common(args):
     num_of_days = 0
     current_day = None
     selected_entries = []
+    not_selected_entries = []
 
     for time_entry in all_times:
         # add entry if it's in correct date range
@@ -1212,10 +1217,12 @@ def common(args):
             if current_day != time_entry["start_dt"].strftime("%d.%m.%Y"):
                 current_day = time_entry["start_dt"].strftime("%d.%m.%Y")
 
-            if args.starting_day + datetime.timedelta(days=args.number_of_days) < time_entry["start_dt"]:
-                break
-
-            selected_entries.append(time_entry)
+            if (args.starting_day + datetime.timedelta(days=args.number_of_days)) < time_entry["start_dt"]:
+                selected_entries.append(time_entry)
+            else:
+                not_selected_entries.append(time_entry)
+        else:
+            not_selected_entries.append(time_entry)
 
     # select records which match all tags AND regex
     selected = tp.selected_records(
@@ -1230,7 +1237,8 @@ def time_entries(args):
     out = tp.print_selected(selected)
 
     tp.export_to_excel_selected(selected)
-    print(out.encode('utf-8'))
+    #print(out.encode('utf-8'), file=open(1, 'w', encoding='utf-8', closefd=False))
+    print(out)
 
 
 def moneyparser(args):
