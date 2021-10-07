@@ -1210,6 +1210,7 @@ def common(args):
     selected_entries = []
     not_selected_entries = []
 
+    all_times = sorted(all_times, key=(lambda x:x["start_dt"]))
     for time_entry in all_times:
         # add entry if it's in correct date range
         if time_entry["start_dt"] >= args.starting_day:
