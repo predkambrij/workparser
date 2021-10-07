@@ -82,6 +82,9 @@ class TicketParser:
 
             if re.match("^year:[0-9]{4}$", stripped_line):
                 year = stripped_line.split(":")[1]
+            elif re.match("^//[ ].*$", stripped_line):
+                # it's a comment, skip ...
+                pass
             elif re.match("^[# ]*[0-9]{1,2}.[0-9]{1,2}.[0-9]{4}$", stripped_line):
                 # add new day
                 # append tuple as example ('30.10', '1900', [ ... day entries ... ])
@@ -106,8 +109,9 @@ class TicketParser:
                     skipped_days.append(stripped_line)
             else:
                 # unparsable line
+                days[-1][2][-1] += " "+stripped_line
                 #skipped_days.append(days[-1][0]+"."+days[-1][1]+" :: "+stripped_line)
-                skipped_days.append(stripped_line)
+                # skipped_days.append(stripped_line)
         return days, skipped_days
 
     def mock_date(self, date, year, start, end, ret=""):
