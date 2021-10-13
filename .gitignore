@@ -1,0 +1,6 @@
+out.xls
+*.pyc
+build
+workparser.egg-info
+ticketparser/inp.dat
+
