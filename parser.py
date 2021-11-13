@@ -13,6 +13,8 @@ import urllib.request
 import ticketparser.config
 import os
 import sys
+import math
+
 sys.path.insert(0, os.path.dirname(__file__)+"/workparser")
 
 class TicketParser:
@@ -177,11 +179,11 @@ class TicketParser:
         if sec < 60:
             return str(sec)+" s"
         elif sec < 3600:
-            return ("%.2f" % (sec/60))+"m"
+            return ("%.0f" % math.floor(sec/60))+"m"
         elif sec < 86400:
-            return ("%.2f" % (sec/60/60))+"h " + ("%.2f" % ((sec/60) % 60))+"m"
+            return ("%.0f" % math.floor(sec/60/60))+"h " + ("%.0f" % math.floor((sec/60) % 60))+"m"
         else:
-            return ("%.2f" % (sec/60/60/24))+"d "+("%.2f" % ((sec/60/60) % 24))+"h " + ("%.2f" % ((sec/60) % 60))+"m"+" == " + ("%.2f" % (sec/60/60))+"h " + ("%.2f" % ((sec/60) % 60))+"m"
+            return ("%.0f" % math.floor(sec/60/60/24))+"d "+("%.0f" % math.floor((sec/60/60) % 24))+"h " + ("%.0f" % math.floor((sec/60) % 60))+"m"+" == " + ("%.0f" % math.floor(sec/60/60))+"h " + ("%.0f" % math.floor((sec/60) % 60))+"m"
 
     def find_tags(self, comment):
         return [x for x in comment.split() if re.match("^#[a-zA-Z]+$", x)]
