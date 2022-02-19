@@ -88,29 +88,35 @@ class TicketParser:
                 # it's a comment, skip ...
                 pass
             elif re.match("^[# ]*[0-9]{1,2}.[0-9]{1,2}.[0-9]{4}$", stripped_line):
-                # add new day
+                # add new day eg.
+                # 1.5.1900 or 31.12.1900
                 # append tuple as example ('30.10', '1900', [ ... day entries ... ])
                 mch = re.search('[# ]*([0-9]{1,2}.[0-9]{1,2}).([0-9]{4})$', stripped_line)
                 days.append(tuple([mch.group(1), str(mch.group(2)), []]))
             elif re.match("^[# ]*[0-9]{1,2}.[0-9]{1,2}$", stripped_line):
-                # add new day
+                # add new day eg.
+                # 1.5 or 31.12
                 # append tuple as example ('30.10', '1900', [ ... day entries ... ])
                 day_month = re.search('[# ]*([0-9]{1,2}.[0-9]{1,2})$', stripped_line).group(1)
                 days.append(tuple([day_month, year, []]))
             elif re.match("^[0-9]{1,2}:[0-9]{2}[ ]*-[ ]*[0-9]{1,2}:[0-9]{2}[ ]*.*$", stripped_line):
-                # add new day entry
+                # add new day entry eg.
+                # 6:03-7:09 bla
+                # 16:03 - 22:09 bla
                 try:
                     days[-1][2].append(stripped_line)
                 except:
                     skipped_days.append(stripped_line)
             elif re.match("^[0-9]{1,2}:[0-9]{2}[ ]*-[ ]*.*$", stripped_line):
-                # add new day entry (unfinished entry)
+                # add new day entry (unfinished entry) eg.
+                # 6:03- bla
                 try:
                     days[-1][2].append(stripped_line)
                 except:
                     skipped_days.append(stripped_line)
             else:
                 # unparsable line
+                # adds as a comment to the previous time entry
                 days[-1][2][-1] += " "+stripped_line
                 #skipped_days.append(days[-1][0]+"."+days[-1][1]+" :: "+stripped_line)
                 # skipped_days.append(stripped_line)
