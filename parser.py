@@ -111,6 +111,9 @@ class TicketParser:
         for date, year, records in days:
             for record in records:
                 start, end_str, comment = self.parse_regex_start_end_comment(record)
+                if start == "" and end_str == "":
+                    ndays[-1]["comment"] += ";" + comment
+                    continue
                 start, end_str, start_sec, end_sec = self.process_start_end(start, end_str, date, year, ndays)
                 comment, money_part, real_comment = self.process_comment(comment)
 
@@ -209,7 +212,7 @@ class TicketParser:
             # 1- bla
             return mch.group(1).strip(), "", mch.group(2).strip()
         else:
-            raise ValueError("record not parsable %s" % record)
+            return "", "", record
 
     def process_comment(self, comment):
         # comment structure:
