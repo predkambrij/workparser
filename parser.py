@@ -110,7 +110,8 @@ class TicketParser:
         ndays = []
         for date, year, records in days:
             for record in records:
-                start, end, start_sec, end_sec, comment = self.process_startend_comment(record, date, year, ndays)
+                start, end, comment = self.parse_regex_start_end_comment(record)
+                start, end, start_sec, end_sec = self.process_start_end(start, end, date, year, ndays)
                 comment, money_part, real_comment = self.process_comment(comment)
 
                 ndays.append({
@@ -133,67 +134,67 @@ class TicketParser:
                 })
         return ndays
 
-    def process_startend_comment(self, record, date, year, ndays):
-        start, end, comment = self.parse_regex_start_end_comment(record)
+    def process_start_end(self, start, end, date, year, ndays):
+        start_str, start_sec = self.calculate_str_and_sec_values(start, date, year)
 
-        #start_end, comment = (mch.group(1), mch.group(2))
-        #start = start_end.split("-")[0].strip()
-        #end = start_end.split("-")[1].strip()
+        end_str, end_sec = self.calculate_str_and_sec_values(end, date, year)
+        if start_sec > end_sec:
+            # end date is over midnight
+            end_date = (datetime.datetime.fromtimestamp(end_sec)+datetime.timedelta(days=1)).strftime("%d.%m")
+            end_str, end_sec = self.calculate_str_and_sec_values(end, end_date, year)
 
-        start_sec = int(time.mktime(time.strptime(date + "." + year + " " + start, "%d.%m.%Y %H:%M")))
-        if str(end).strip() == "":
-            # unfinished entry
-            end_sec = start_sec + 60
+        return start, end, start_sec, end_sec
+
+    def calculate_str_and_sec_values(self, hour_minute, date, year):
+        hour, minute = self.parse_hour_min(hour_minute)
+        strval = ("%s.%s" % (date, year)) + " " + ("%s:%s" % (hour, minute))
+        sec = int(time.mktime(time.strptime(strval, "%d.%m.%Y %H:%M")))
+        return strval, sec
+
+    def parse_hour_min(self, hour_minute):
+        if (mch := re.search("^([0-9]{1,2}):([0-9]{2})$", hour_minute)):
+            return mch.group(1).strip(), mch.group(2).strip()
         else:
-            end_sec = int(time.mktime(time.strptime(
-                self.mock_date(date, year, start, end) + "." + year + " " + end, "%d.%m.%Y %H:%M")))
-
-        return start, end, start_sec, end_sec, comment
+            raise ValueError("hour_minute not parsable %s" % hour_minute)
 
     def parse_regex_start_end_comment(self, record):
         if (mch := re.search("^([0-9]{1,2}:[0-9]{2}[ ]*)-([ ]*[0-9]{1,2}:[0-9]{2}[ ]*)(.*)$", record)):
             # 1:09-13:09 bla
-            return mch.group(1), mch.group(2), mch.group(3)
+            return mch.group(1).strip(), mch.group(2).strip(), mch.group(3).strip()
         elif (mch := re.search("^([0-9]{1,2}:[0-9]{2}[ ]*)-([ ]*:[0-9]{2}[ ]*)(.*)$", record)):
             # 1:03-:09 bla
-            return mch.group(1), mch.group(2), mch.group(3)
+            return mch.group(1).strip(), mch.group(2).strip(), mch.group(3).strip()
         elif (mch := re.search("^([0-9]{1,2}[ ]*)-([ ]*[0-9]{1,2}:[0-9]{2}[ ]*)(.*)$", record)):
             # 1-13:09 bla
-            return mch.group(1), mch.group(2), mch.group(3)
+            return mch.group(1).strip(), mch.group(2).strip(), mch.group(3).strip()
         elif (mch := re.search("^([0-9]{1,2}[ ]*)-([ ]*:[0-9]{2}[ ]*)(.*)$", record)):
             # 1-:09 bla
-            return mch.group(1), mch.group(2), mch.group(3)
+            return mch.group(1).strip(), mch.group(2).strip(), mch.group(3).strip()
         elif (mch := re.search("^([0-9]{1,2}:[0-9]{2}[ ]*)-([ ]*[0-9]{1,2}[ ]*)(.*)$", record)):
             # 1:09-13 bla
-            return mch.group(1), mch.group(2), mch.group(3)
+            return mch.group(1).strip(), mch.group(2).strip(), mch.group(3).strip()
         elif (mch := re.search("^([0-9]{1,2}[ ]*)-([ ]*[0-9]{1,2}[ ]*)(.*)$", record)):
             # 1-13 bla
-            return mch.group(1), mch.group(2), mch.group(3)
+            return mch.group(1).strip(), mch.group(2).strip(), mch.group(3).strip()
 
         elif (mch := re.search("^-([ ]*[0-9]{1,2}:[0-9]{2}[ ]*)(.*)$", record)):
             # -13:09 bla
-            return "", mch.group(1), mch.group(2)
+            return "", mch.group(1).strip(), mch.group(2).strip()
         elif (mch := re.search("^-([ ]*[0-9]{1,2}[ ]*)(.*)$", record)):
             # -13 bla
-            return "", mch.group(1), mch.group(2)
+            return "", mch.group(1).strip(), mch.group(2).strip()
         elif (mch := re.search("^-([ ]*:[0-9]{2}[ ]*)(.*)$", record)):
             # -:09 bla
-            return "", mch.group(1), mch.group(2)
+            return "", mch.group(1).strip(), mch.group(2).strip()
 
         elif (mch := re.search("^([0-9]{1,2}:[0-9]{2}[ ]*)-[ ]*(.*)$", record)):
             # 1:09- bla
-            return mch.group(1), "", mch.group(2)
+            return mch.group(1).strip(), "", mch.group(2).strip()
         elif (mch := re.search("^([0-9]{1,2}[ ]*)-[ ]*(.*)$", record)):
             # 1- bla
-            return mch.group(1), "", mch.group(2)
+            return mch.group(1).strip(), "", mch.group(2).strip()
         else:
-            raise ValueError("not parsable %s" % record)
-
-    def mock_date(self, date, year, start, end, ret=""):
-        if int(time.mktime(time.strptime(start, "%H:%M"))) < int(time.mktime(time.strptime(end, "%H:%M"))):
-            return date
-        else:
-            return (datetime.datetime.fromtimestamp(int(time.mktime(time.strptime(date+"."+year, "%d.%m.%Y"))))+datetime.timedelta(days=1)).strftime("%d.%m")
+            raise ValueError("record not parsable %s" % record)
 
     def process_comment(self, comment):
         # comment structure:
