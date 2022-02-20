@@ -143,17 +143,19 @@ class TicketParser:
             end_date = (datetime.datetime.fromtimestamp(end_sec)+datetime.timedelta(days=1)).strftime("%d.%m")
             end_str, end_sec = self.calculate_str_and_sec_values(end, end_date, year)
 
-        return start, end, start_sec, end_sec
+        return start_str, end_str, start_sec, end_sec
 
     def calculate_str_and_sec_values(self, hour_minute, date, year):
         hour, minute = self.parse_hour_min(hour_minute)
         strval = ("%s.%s" % (date, year)) + " " + ("%s:%s" % (hour, minute))
         sec = int(time.mktime(time.strptime(strval, "%d.%m.%Y %H:%M")))
-        return strval, sec
+        return ("%s:%s" % (hour, minute)), sec
 
     def parse_hour_min(self, hour_minute):
         if (mch := re.search("^([0-9]{1,2}):([0-9]{2})$", hour_minute)):
             return mch.group(1).strip(), mch.group(2).strip()
+        elif (mch := re.search("^([0-9]{1,2})$", hour_minute)):
+            return mch.group(1).strip(), "00"
         else:
             raise ValueError("hour_minute not parsable %s" % hour_minute)
 

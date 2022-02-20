@@ -36,6 +36,13 @@ class TestRecord(unittest.TestCase):
             ("6:03", "7:09", "20.2", "2022",
                 [],
              "6:03", "7:09", 66),
+            ("6:03", "7", "20.2", "2022",
+             [],
+             "6:03", "7:00", 57),
+            ("6", "7:09", "20.2", "2022",
+             [],
+             "6:00", "7:09", 69),
+
         )
         for (start, end, date, year, ndays,
                 startC, endC, min_diffC) in cases:
