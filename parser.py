@@ -83,7 +83,7 @@ class TicketParser:
 
             if re.match("^year:[0-9]{4}$", stripped_line):
                 year = stripped_line.split(":")[1]
-            elif re.match("^//[ ].*$", stripped_line):
+            elif re.match("^//.*$", stripped_line):
                 # it's a comment, skip ...
                 pass
             elif re.match("^[# ]*[0-9]{1,2}.[0-9]{1,2}.[0-9]{4}$", stripped_line):
@@ -220,15 +220,15 @@ class TicketParser:
         # comment + money entry + real comment
         # or
         # comment + real comment
-        if "//" in comment:
-            comment, real_comment = comment.rsplit("//", 1)
-        else:
-            real_comment = ""
 
+        real_comment = ""
+        if "//" in comment:
+            # omit my comment - don't process it
+            comment, _ = comment.split("//", 1)
+
+        money_part = ""
         if "!#" in comment:
             comment, money_part = comment.rsplit("!#", 1)
-        else:
-            money_part = ""
 
         # strip all tree
         return comment.strip(), money_part.strip(), real_comment.strip()
