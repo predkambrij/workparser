@@ -37,10 +37,10 @@ class TestRecord(unittest.TestCase):
             ("23:53", "1:10", "20.2", "2022", ([], "23:53", "1:10", 77)),   # test over midnight
             ("6:03", "7", "20.2", "2022", ([], "6:03", "7:00", 57)),        # test whole numbers
             ("6", "7:09", "20.2", "2022", ([], "6:00", "7:09", 69)),        # test whole numbers
-
             ("", "7:09", "20.2", "2022", ([{"end":"6:55"}], "6:55", "7:09", 14)),   # test omitted start
 
-            #("6", ":09", "20.2", "2022", ([], "6:00", "6:09", 9)),          # test omitted hour for end
+            ("6:05", ":19", "20.2", "2022", ([], "6:05", "6:19", 14)),          # test omitted hour for end
+            ("", ":19", "20.2", "2022", ([{"end":"6:05"}], "6:05", "6:19", 14)),  # test omitted hour for end
 
         )
         for (start, end, date, year, (ndays,

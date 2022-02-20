@@ -135,24 +135,29 @@ class TicketParser:
         return ndays
 
     def process_start_end(self, start, end, date, year, ndays):
-        start_str, start_sec = self.calculate_str_and_sec_values(start, date, year, ndays)
+        start_str, start_sec = self.calculate_str_and_sec_values(start, date, year, None, ndays, "start")
 
-        end_str, end_sec = self.calculate_str_and_sec_values(end, date, year)
+        end_str, end_sec = self.calculate_str_and_sec_values(end, date, year, start_str, None, "end")
         if start_sec > end_sec:
             # end date is over midnight
             end_date = (datetime.datetime.fromtimestamp(end_sec)+datetime.timedelta(days=1)).strftime("%d.%m")
-            end_str, end_sec = self.calculate_str_and_sec_values(end, end_date, year)
+            end_str, end_sec = self.calculate_str_and_sec_values(end, end_date, year, None, None, None)
 
         return start_str, end_str, start_sec, end_sec
 
-    def calculate_str_and_sec_values(self, hour_minute, date, year, ndays=None):
-        if hour_minute == "" and ndays != None:
+    def calculate_str_and_sec_values(self, hour_minute, date, year, start_str, ndays, entry):
+        if hour_minute == "" and entry == "start":
             # start value omitted, use end of previous entry
             if len(ndays) == 0:
                 raise ValueError("first entry of the day cannot be with omitted start value!")
             hour_minute = ndays[-1]["end"]
 
         hour, minute = self.parse_hour_min(hour_minute)
+        if hour == "":
+            if entry == "start":
+                raise ValueError("omitted hour can be only for end time")
+            hour = self.parse_hour_min(start_str)[0]
+
         strval = ("%s.%s" % (date, year)) + " " + ("%s:%s" % (hour, minute))
         sec = int(time.mktime(time.strptime(strval, "%d.%m.%Y %H:%M")))
         return ("%s:%s" % (hour, minute)), sec
@@ -160,6 +165,8 @@ class TicketParser:
     def parse_hour_min(self, hour_minute):
         if (mch := re.search("^([0-9]{1,2}):([0-9]{2})$", hour_minute)):
             return mch.group(1).strip(), mch.group(2).strip()
+        elif (mch := re.search("^:([0-9]{2})$", hour_minute)):
+            return "", mch.group(1).strip()
         elif (mch := re.search("^([0-9]{1,2})$", hour_minute)):
             return mch.group(1).strip(), "00"
         else:
