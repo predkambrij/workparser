@@ -33,19 +33,16 @@ class TestRecord(unittest.TestCase):
         tp = parser.TicketParser()
 
         cases = (
-            ("6:03", "7:09", "20.2", "2022",
-                [],
-             "6:03", "7:09", 66),
-            ("6:03", "7", "20.2", "2022",
-             [],
-             "6:03", "7:00", 57),
-            ("6", "7:09", "20.2", "2022",
-             [],
-             "6:00", "7:09", 69),
+            ("6:03", "7:09", "20.2", "2022", ([], "6:03", "7:09", 66)),
+            ("23:53", "1:10", "20.2", "2022", ([], "23:53", "1:10", 77)),
+            ("6:03", "7", "20.2", "2022", ([], "6:03", "7:00", 57)),
+            ("6", "7:09", "20.2", "2022", ([], "6:00", "7:09", 69)),
+
+            #("6", ":09", "20.2", "2022", ([], "6:00", "6:09", 9)),
 
         )
-        for (start, end, date, year, ndays,
-                startC, endC, min_diffC) in cases:
+        for (start, end, date, year, (ndays,
+                startC, endC, min_diffC)) in cases:
             start, end, start_sec, end_sec = tp.process_start_end(start, end, date, year, ndays)
             self.assertEqual(start, startC)
             self.assertEqual(end, endC)
