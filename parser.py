@@ -110,8 +110,8 @@ class TicketParser:
         ndays = []
         for date, year, records in days:
             for record in records:
-                start, end, comment = self.parse_regex_start_end_comment(record)
-                start, end, start_sec, end_sec = self.process_start_end(start, end, date, year, ndays)
+                start, end_str, comment = self.parse_regex_start_end_comment(record)
+                start, end_str, start_sec, end_sec = self.process_start_end(start, end_str, date, year, ndays)
                 comment, money_part, real_comment = self.process_comment(comment)
 
                 ndays.append({
@@ -122,7 +122,7 @@ class TicketParser:
                     "start_sec": start_sec,
                     "start_dt": datetime.datetime.fromtimestamp(start_sec),
                     "start": start,
-                    "end": end,
+                    "end": end_str,
 
                     "duration": (end_sec-start_sec),
                     "total_minutes": ("%.0f" % ((end_sec-start_sec)/60)),
@@ -135,7 +135,7 @@ class TicketParser:
         return ndays
 
     def process_start_end(self, start, end, date, year, ndays):
-        start_str, start_sec = self.calculate_str_and_sec_values(start, date, year)
+        start_str, start_sec = self.calculate_str_and_sec_values(start, date, year, ndays)
 
         end_str, end_sec = self.calculate_str_and_sec_values(end, date, year)
         if start_sec > end_sec:
@@ -145,7 +145,13 @@ class TicketParser:
 
         return start_str, end_str, start_sec, end_sec
 
-    def calculate_str_and_sec_values(self, hour_minute, date, year):
+    def calculate_str_and_sec_values(self, hour_minute, date, year, ndays=None):
+        if hour_minute == "" and ndays != None:
+            # start value omitted, use end of previous entry
+            if len(ndays) == 0:
+                raise ValueError("first entry of the day cannot be with omitted start value!")
+            hour_minute = ndays[-1]["end"]
+
         hour, minute = self.parse_hour_min(hour_minute)
         strval = ("%s.%s" % (date, year)) + " " + ("%s:%s" % (hour, minute))
         sec = int(time.mktime(time.strptime(strval, "%d.%m.%Y %H:%M")))
