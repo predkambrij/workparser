@@ -35,13 +35,13 @@ class TestRecord(unittest.TestCase):
         cases = (
             ("6:03", "7:09", "20.2", "2022",
                 [],
-             "6:03", "7:09", 0, 0, "bla bla"),
+             "6:03", "7:09", 66),
         )
         for (start, end, date, year, ndays,
-                startC, endC, start_secC, end_secC, commentC) in cases:
+                startC, endC, min_diffC) in cases:
             start, end, start_sec, end_sec = tp.process_start_end(start, end, date, year, ndays)
             self.assertEqual(start, startC)
             self.assertEqual(end, endC)
-            self.assertEqual((end_sec-start_sec)/60, 66)
+            self.assertEqual((end_sec-start_sec)/60, min_diffC)
             assert True
         assert True
