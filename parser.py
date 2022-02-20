@@ -1268,26 +1268,15 @@ def common(args):
 
     # select by first date and limit at args.number_of_days TODO months aren't implemented yet
     num_of_days = 0
-    current_day = None
     selected_entries = []
     not_selected_entries = []
 
     all_times = sorted(all_times, key=(lambda x:x["start_dt"]))
     for time_entry in all_times:
         # add entry if it's in correct date range
-        if time_entry["start_dt"] >= args.starting_day:
-            # first loop
-            if current_day == None:
-                current_day = time_entry["start_dt"].strftime("%d.%m.%Y")
-
-            # if day changed - count number of added days
-            if current_day != time_entry["start_dt"].strftime("%d.%m.%Y"):
-                current_day = time_entry["start_dt"].strftime("%d.%m.%Y")
-
-            if (args.starting_day + datetime.timedelta(days=args.number_of_days)) < time_entry["start_dt"]:
-                selected_entries.append(time_entry)
-            else:
-                not_selected_entries.append(time_entry)
+        if (time_entry["start_dt"] >= args.starting_day
+                and (args.starting_day + datetime.timedelta(days=args.number_of_days)) > time_entry["start_dt"]):
+            selected_entries.append(time_entry)
         else:
             not_selected_entries.append(time_entry)
 
