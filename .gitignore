@@ -4,3 +4,4 @@ build
 workparser.egg-info
 ticketparser/inp.dat
 
+.idea

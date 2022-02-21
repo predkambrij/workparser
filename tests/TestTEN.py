@@ -1,5 +1,5 @@
 # -*- coding:utf8 -*-
-from __future__ import with_statement
+
 
 import unittest
 import os, sys
@@ -34,8 +34,8 @@ class CodecsOpen:
         raise ValueError("other file "+self.fn)
     def write(self, content):
         if self.fn == "week_export.xsl":
-            print "week_export.xsl:"
-            print content
+            print("week_export.xsl:")
+            print(content)
         pass
     
 # test class
@@ -70,45 +70,45 @@ class TestTEN(unittest.TestCase):
                 self.args.money_tags, self.args.list_money_tags, self.args.show_by_tags)
             
             solutions={#balance, outcome, income
-                       "07.11.2014":{u"S":[-235,235,0]},
+                       "07.11.2014":{"S":[-235,235,0]},
                        
-                       "10.11.2014":{u"S":[-16,16,0],
-                                     u"\u20ac":[-4,4,0],#€
+                       "10.11.2014":{"S":[-16,16,0],
+                                     "\u20ac":[-4,4,0],#€
                                      },
-                       "13.11.2014":{u"S":[-30,30,0]},
-                       "14.11.2014":{u"S":[-10,10,0]},
-                       "17.11.2014":{u"S":[-567,567,0]},
+                       "13.11.2014":{"S":[-30,30,0]},
+                       "14.11.2014":{"S":[-10,10,0]},
+                       "17.11.2014":{"S":[-567,567,0]},
                        }
             
             # assert days
             #print repr(r["days"]["07.11.2014"]["balance"][u"S"])
-            for k in solutions.keys():
-                curs = solutions[k].keys()
+            for k in list(solutions.keys()):
+                curs = list(solutions[k].keys())
                 for c in curs:
                     cb = int(r["days"][k]["balance"][c][0])
                     co = int(r["days"][k]["balance"][c][2])
                     ci = int(r["days"][k]["balance"][c][1])
-                    self.assertEquals(cb, solutions[k][c][0])
-                    self.assertEquals(co, solutions[k][c][1])
-                    self.assertEquals(ci, solutions[k][c][2])
+                    self.assertEqual(cb, solutions[k][c][0])
+                    self.assertEqual(co, solutions[k][c][1])
+                    self.assertEqual(ci, solutions[k][c][2])
             
             # assert weeks
-            solutions_weeks={tuple(["07.11.2014","07.11.2014"]):{u"S":[-235,235,0]},
-                             tuple(["10.11.2014","14.11.2014"]):{u"S":[-56,56,0],
-                                                                 u"\u20ac":[-4,4,0],#€
+            solutions_weeks={tuple(["07.11.2014","07.11.2014"]):{"S":[-235,235,0]},
+                             tuple(["10.11.2014","14.11.2014"]):{"S":[-56,56,0],
+                                                                 "\u20ac":[-4,4,0],#€
                                                                  },
-                             tuple(["17.11.2014","17.11.2014"]):{u"S":[-567,567,0]},
+                             tuple(["17.11.2014","17.11.2014"]):{"S":[-567,567,0]},
                              }
-            for k in solutions_weeks.keys():
-                curs = solutions_weeks[k].keys()
+            for k in list(solutions_weeks.keys()):
+                curs = list(solutions_weeks[k].keys())
                 for c in curs:
                     cb = int(r["weeks"][k]["balance"][c][0])
                     co = int(r["weeks"][k]["balance"][c][2])
                     ci = int(r["weeks"][k]["balance"][c][1])
-                    self.assertEquals(cb, solutions_weeks[k][c][0])
-                    self.assertEquals(co, solutions_weeks[k][c][1])
-                    self.assertEquals(ci, solutions_weeks[k][c][2])
+                    self.assertEqual(cb, solutions_weeks[k][c][0])
+                    self.assertEqual(co, solutions_weeks[k][c][1])
+                    self.assertEqual(ci, solutions_weeks[k][c][2])
             
             
-            print self.mp.formatDicts(r, see=["d","w","t", "taglist"])
+            print(self.mp.formatDicts(r, see=["d","w","t", "taglist"]))
         pass
