@@ -266,7 +266,9 @@ class TicketParser:
     def export_to_excel_selected(self, records, overall_time=False, skip_tags=True):
         formated_records = "Date\tStart\tEnd\tTime\tMinutes\tComment\n"
         formated_records += "\n".join([x["datetime"]+"\t"+x["start"]+"\t"+x["end"]+"\t"+x["str_diff"]+"\t"+x["total_minutes"]+"\t"+" ".join(
-            word for word in (x["comment"] if type(x["comment"]) == type("") else x["comment"]).split(" ") if not word.startswith("#")).strip() for x in records])
+            word for word in (x["comment"] if type(x["comment"]) == type("") else x["comment"]).split(" ")
+                #if not word.startswith("#")
+        ).strip() for x in records])
         codecs.open("out.xls","wb", "utf-8").write(formated_records)
         return
 
