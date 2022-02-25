@@ -1140,6 +1140,8 @@ class ParseArguments:
 
         argparser.add_argument('-d', '--day', nargs=1, type=self.checkDateFormat,
                                required=False, help="set starting day (default today) in format %%d.%%m.%%Y example:(25 or 25.12 or 25.12.2013)")
+        argparser.add_argument('-e', '--end', nargs=1, type=self.checkDateFormat,
+                               required=False, help="set ending day in format %%d.%%m.%%Y example:(25 or 25.12 or 25.12.2013)")
         argparser.add_argument('-n', '--number', nargs=1, type=self.checkNumberOfdays,
                                required=False, help="display number of days or months (default 1 day) backward starting day (--day flag)\n"
                                + "Example -n 5d (5 days backward starting day); -n 1m (from starting day backward to first in this month); -n 2m (from starting day backward to first in previous month)")
@@ -1159,6 +1161,11 @@ class ParseArguments:
             self.starting_day = datetime.datetime.fromtimestamp(today_int)
         else:
             self.starting_day = args.day[0]
+
+        if args.end != None:
+            self.ending_day = args.end[0]
+        else:
+            self.ending_day = None
 
         # number of days to show after starting date (use as default 1 day)
         if args.number == None:
@@ -1276,11 +1283,15 @@ def common(args):
     all_times = sorted(all_times, key=(lambda x:x["start_dt"]))
     for time_entry in all_times:
         # add entry if it's in correct date range
-        if (time_entry["start_dt"] >= args.starting_day
-                and (args.starting_day + datetime.timedelta(days=args.number_of_days)) > time_entry["start_dt"]):
-            selected_entries.append(time_entry)
+        if (args.ending_day != None):
+            if (args.starting_day <= time_entry["start_dt"] and time_entry["start_dt"] <= (args.ending_day+datetime.timedelta(days=1))):
+                selected_entries.append(time_entry)
         else:
-            not_selected_entries.append(time_entry)
+            if (time_entry["start_dt"] >= args.starting_day
+                    and (args.starting_day + datetime.timedelta(days=args.number_of_days)) > time_entry["start_dt"]):
+                selected_entries.append(time_entry)
+            else:
+                not_selected_entries.append(time_entry)
 
     # select records which match all tags AND regex
     selected = tp.selected_records(
