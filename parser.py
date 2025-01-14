@@ -114,6 +114,9 @@ class TicketParser:
                 if start == "" and end_str == "":
                     ndays[-1]["comment"] += ";" + comment
                     continue
+                if start != "" and end_str == "":
+                    # it's open end_str, use current time
+                    end_str = datetime.datetime.now().strftime("%H:%M")
                 start, end_str, start_sec, end_sec = self.process_start_end(start, end_str, date, year, ndays)
                 comment, money_part, real_comment = self.process_comment(comment)
 
